@@ -1,0 +1,35 @@
+
+{
+"AVCDialInRequest":
+{
+ "callId": "f11db41e-7ba7-4d8b-9960-41363c0b711a",
+ "avcEndpoint": {
+  "avcEndpoint": {
+   "signalType": "H323",
+   "encryption": true,
+   "ipv4": "192.168.101.3",
+   "ipv6": "",
+   "e164": "10026",
+   "conferenceId": "10026",
+   "url": "10026@192.168.101.3"
+  },
+  "isAudioOnly": false,
+  "peopleProperty": {
+   "mediaId": "",
+   "bitrate": 4096,
+   "width": 1920,
+   "height": 1080,
+   "fps": 30
+  },
+  "contentProperty": {
+   "mediaId": "",
+   "bitrate": 2048,
+   "width": 1920,
+   "height": 1080,
+   "fps": 35
+  }
+ },
+ "conferenceId": "01090001",
+ "password": ""
+}
+}

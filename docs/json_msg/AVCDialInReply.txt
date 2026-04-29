@@ -1,0 +1,52 @@
+
+{
+"AVCDialInReply":
+{
+ "callId": "f11db41e-7ba7-4d8b-9960-41363c0b711a",
+ "returnCode": 0,
+ "agoraEndpoint": {
+  "agoraEndpoint": {
+   "name": "显示的名字",
+   "url": "139293@cloudnet.cn",
+   "conferenceId": "01090001"
+  },
+  "callBitrate": 8192,
+  "isAudioOnly": false,
+  "toMcuAudioProperty": {
+   "mediaId": "/agsh_AudioToMcu_0018",
+   "muted": false
+  },
+  "fromMcuAudioProperty": {
+   "mediaId": "/agsh_AudioFromMcu_0418"
+  },
+  "toGWVideoProperty": {
+   "mediaId": "/agsh_VideoToMcu_0018",
+   "bitrate": 8192,
+   "width": 1280,
+   "height": 720,
+   "fps": 30
+  },
+  "fromGWVideoProperty": {
+   "mediaId": "/agsh_VideoFromMcu_0918",
+   "bitrate": 8192,
+   "width": 1280,
+   "height": 720,
+   "fps": 30
+  },
+  "toGWContentProperty": {
+   "mediaId": "/agsh_ContentToMcu_0218",
+   "bitrate": 3712,
+   "width": 1920,
+   "height": 1080,
+   "fps": 12
+  },
+  "fromGWContentProperty": {
+   "mediaId": "/agsh_ContentFromMcu_0618",
+   "bitrate": 4096,
+   "width": 1920,
+   "height": 1080,
+   "fps": 15
+  }
+ }
+}
+}
