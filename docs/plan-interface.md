@@ -87,7 +87,7 @@
 typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex_message_t *msg_t);
 
 int agorahex_signal_start(int server_mode, int tcp_port, agorahex_signal_cb_t cb);
-int agorahex_signal_send(int fd, const void *buffer, int len);
+int agorahex_signal_send(int fd, const void *json, int len);
 int agorahex_signal_poll(int timeout_ms);
 void agorahex_signal_close(void);
 ```
@@ -148,7 +148,7 @@ void agorahex_signal_close(void);
 
 ```c
 int agorahex_signal_start(int server_mode, int tcp_port, agorahex_signal_cb_t cb);
-int agorahex_signal_send(int fd, const void *buffer, int len);
+int agorahex_signal_send(int fd, const void *json, int len);
 int agorahex_signal_poll(int timeout_ms);
 void agorahex_signal_close(void);
 ```
@@ -406,14 +406,14 @@ typedef struct agorahex_signal_runtime {
   - client 模式下：
     - 忽略 `fd` 参数
     - 固定发送给当前连接的 server
-- `buffer`
-  - 待发送的 signal 数据
+- `json`
+  - 待发送的 signal JSON 数据
 - `len`
   - 待发送数据长度
 
 行为：
 
-- 先对 `buffer` 和 `len` 做基本校验
+- 先对 `json` 和 `len` 做基本校验
 - 将上层 signal 数据编码为协议帧
 - 当处于 `server_mode`
   - 若 `fd == -1`，则遍历所有已连接 client，逐个发送

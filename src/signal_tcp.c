@@ -76,7 +76,7 @@ static int start_server(int tcp_port, agorahex_signal_cb_t cb);
 static int start_client(int tcp_port, agorahex_signal_cb_t cb);
 static void close_server_mode(void);
 static void close_client_mode(void);
-static int validate_signal_payload(const void *buffer, int len);
+static int validate_signal_payload(const void *json, int len);
 static int write_all_or_close(agorahex_signal_conn_t *conn, const uint8_t *buf, size_t len);
 static int server_send_one(int fd, const uint8_t *frame, size_t frame_len);
 static int server_send_all(const uint8_t *frame, size_t frame_len);
@@ -174,15 +174,15 @@ static int create_stream_socket(void) {
     return fd;
 }
 
-static int validate_signal_payload(const void *buffer, int len) {
+static int validate_signal_payload(const void *json, int len) {
     agorahex_message_t msg;
     agorahex_result_t r;
 
-    if (len < 0 || (!buffer && len > 0)) {
+    if (len < 0 || (!json && len > 0)) {
         return AGORAHEX_ERR_INVALID_ARG;
     }
     memset(&msg, 0, sizeof msg);
-    r = agorahex_parse_envelope((const char *)buffer, (size_t)len, &msg);
+    r = agorahex_parse_envelope((const char *)json, (size_t)len, &msg);
     if (r != AGORAHEX_OK) {
         return (int)r;
     }
@@ -333,7 +333,7 @@ static int server_send_all(const uint8_t *frame, size_t frame_len) {
     return rc;
 }
 
-int agorahex_signal_send(int fd, const void *buffer, int len) {
+int agorahex_signal_send(int fd, const void *json, int len) {
     uint8_t *frame;
     size_t frame_len;
     int rc;
@@ -342,7 +342,7 @@ int agorahex_signal_send(int fd, const void *buffer, int len) {
     if (g_runtime.mode == -1) {
         return AGORAHEX_ERR_NOT_STARTED;
     }
-    rc = validate_signal_payload(buffer, len);
+    rc = validate_signal_payload(json, len);
     if (rc != AGORAHEX_OK) {
         return rc;
     }
@@ -352,7 +352,7 @@ int agorahex_signal_send(int fd, const void *buffer, int len) {
     if (!frame) {
         return AGORAHEX_ERR_NO_MEMORY;
     }
-    agorahex_frame_encode((const uint8_t *)buffer, (size_t)len, frame);
+    agorahex_frame_encode((const uint8_t *)json, (size_t)len, frame);
 
     if (g_runtime.mode == AGORAHEX_SIGNAL_SERVER_MODE) {
         rc = (fd == AGORAHEX_SIGNAL_BROADCAST_FD) ? server_send_all(frame, frame_len) : server_send_one(fd, frame, frame_len);
