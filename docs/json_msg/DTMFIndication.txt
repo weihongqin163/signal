@@ -1,0 +1,8 @@
+
+{
+"DTMFIndication":
+{
+ "callId": "89b559b9-a4bb-46ff-b819-9ba67b892cdb",
+ "event": "2"
+}
+}
