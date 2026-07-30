@@ -59,6 +59,10 @@ void agorahex_message_free(agorahex_message_t *m);
  */
 agorahex_result_t agorahex_marshal_envelope(const agorahex_message_t *msg, char **out_json, size_t *out_len);
 
+// helper functions to avoid poxi and standard c functions
+// and release use free
+char *agorahex_strdup(const char *s);
+
 #ifdef __cplusplus
 }
 #endif

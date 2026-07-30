@@ -45,7 +45,7 @@ int main(void) {
     agorahex_message_t out;
     memset(&out, 0, sizeof out);
     out.kind = AGORAHEX_KIND_AVC_START_CONTENT_REPLAY;
-    out.u.avc_start_content_replay.call_id = strdup("abc");
+    out.u.avc_start_content_replay.call_id = agorahex_strdup("abc");
     out.u.avc_start_content_replay.accept = true;
     char *json = NULL;
     size_t jl = 0;

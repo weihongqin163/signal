@@ -15,7 +15,18 @@ static char *dup_or_null(const char *s) {
     if (!s) {
         return NULL;
     }
-    return strdup(s);
+    return agorahex_strdup(s);
+}
+char *agorahex_strdup(const char *s) {
+    if (!s) {
+        return NULL;
+    }
+    char *dup = malloc(strlen(s) + 1);
+    if (!dup) {
+        return NULL;
+    }
+    strcpy(dup, s);
+    return dup;
 }
 
 static void free_display_info(agorahex_display_info_t *d) {

@@ -105,21 +105,21 @@ static int build_sample(const char *sample, char **out_json, size_t *out_len) {
     memset(&m, 0, sizeof m);
     if (strcmp(sample, "hangup") == 0) {
         m.kind = AGORAHEX_KIND_HANGUP_INDICATION;
-        m.u.hangup_indication.call_id = strdup("00000000-0000-0000-0000-000000000001");
+        m.u.hangup_indication.call_id = agorahex_strdup("00000000-0000-0000-0000-000000000001");
         m.u.hangup_indication.drop_code = 0;
         if (!m.u.hangup_indication.call_id) {
             return -1;
         }
     } else if (strcmp(sample, "muted") == 0) {
         m.kind = AGORAHEX_KIND_MUTED_INDICATION;
-        m.u.muted_indication.call_id = strdup("00000000-0000-0000-0000-000000000001");
+        m.u.muted_indication.call_id = agorahex_strdup("00000000-0000-0000-0000-000000000001");
         m.u.muted_indication.muted = true;
         if (!m.u.muted_indication.call_id) {
             return -1;
         }
     } else if (strcmp(sample, "start_content_request") == 0) {
         m.kind = AGORAHEX_KIND_AVC_START_CONTENT_REQUEST;
-        m.u.avc_start_content_request.call_id = strdup("00000000-0000-0000-0000-000000000001");
+        m.u.avc_start_content_request.call_id = agorahex_strdup("00000000-0000-0000-0000-000000000001");
         if (!m.u.avc_start_content_request.call_id) {
             return -1;
         }
