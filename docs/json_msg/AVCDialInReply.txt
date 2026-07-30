@@ -2,7 +2,7 @@
 {
 "AVCDialInReply":
 {
- "callId": "f11db41e-7ba7-4d8b-9960-41363c0b711a",
+ "callId": "103387fb-0caa-431b-8973-4a32a4a443a2",
  "returnCode": 0,
  "agoraEndpoint": {
   "agoraEndpoint": {
@@ -47,6 +47,14 @@
    "height": 1080,
    "fps": 15
   }
+ },
+ "maxPeopleResolution": {
+  "avcWidth": 640,
+  "avcHeight": 360
+ },
+ "maxContentResolution": {
+  "avcWidth": 1280,
+  "avcHeight": 720
  }
 }
 }
