@@ -2,9 +2,10 @@
 {
 "AVCDialInRequest":
 {
- "callId": "f11db41e-7ba7-4d8b-9960-41363c0b711a",
+ "callId": "a1508ebc-4347-4087-b14b-619f49e4ea53",
  "avcEndpoint": {
   "avcEndpoint": {
+   "displayName": "",
    "signalType": "H323",
    "encryption": true,
    "ipv4": "192.168.101.3",

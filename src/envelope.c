@@ -51,6 +51,17 @@ static void free_video_track(agorahex_video_track_t *v) {
     memset(v, 0, sizeof(*v));
 }
 
+static void free_avc_signal_leg(agorahex_avc_signal_leg_t *leg) {
+    free(leg->signal_type);
+    free(leg->ipv4);
+    free(leg->ipv6);
+    free(leg->e164);
+    free(leg->conference_id);
+    free(leg->url);
+    free(leg->display_name);
+    memset(leg, 0, sizeof(*leg));
+}
+
 void agorahex_message_free(agorahex_message_t *m) {
     if (!m) {
         return;
@@ -66,12 +77,7 @@ void agorahex_message_free(agorahex_message_t *m) {
         free_video_track(&x->agora_endpoint.from_gw_video);
         free_video_track(&x->agora_endpoint.to_gw_content);
         free_video_track(&x->agora_endpoint.from_gw_content);
-        free(x->avc_leg.signal_type);
-        free(x->avc_leg.ipv4);
-        free(x->avc_leg.ipv6);
-        free(x->avc_leg.e164);
-        free(x->avc_leg.conference_id);
-        free(x->avc_leg.url);
+        free_avc_signal_leg(&x->avc_leg);
         memset(x, 0, sizeof(*x));
         break;
     }
@@ -80,12 +86,7 @@ void agorahex_message_free(agorahex_message_t *m) {
         free(x->call_id);
         free(x->conference_id);
         free(x->password);
-        free(x->avc_endpoint.avc_endpoint.signal_type);
-        free(x->avc_endpoint.avc_endpoint.ipv4);
-        free(x->avc_endpoint.avc_endpoint.ipv6);
-        free(x->avc_endpoint.avc_endpoint.e164);
-        free(x->avc_endpoint.avc_endpoint.conference_id);
-        free(x->avc_endpoint.avc_endpoint.url);
+        free_avc_signal_leg(&x->avc_endpoint.avc_endpoint);
         free(x->avc_endpoint.people_property.media_id);
         free(x->avc_endpoint.content_property.media_id);
         memset(x, 0, sizeof(*x));
@@ -133,6 +134,11 @@ void agorahex_message_free(agorahex_message_t *m) {
         free(m->u.stop_content_indication.call_id);
         memset(&m->u.stop_content_indication, 0, sizeof(m->u.stop_content_indication));
         break;
+    case AGORAHEX_KIND_DTMF_INDICATION:
+        free(m->u.dtmf_indication.call_id);
+        free(m->u.dtmf_indication.event);
+        memset(&m->u.dtmf_indication, 0, sizeof(m->u.dtmf_indication));
+        break;
     default:
         break;
     }
@@ -161,6 +167,8 @@ const char *agorahex_kind_cstr(agorahex_kind_t k) {
         return "AVCStartContentReplay";
     case AGORAHEX_KIND_STOP_CONTENT_INDICATION:
         return "StopContentIndication";
+    case AGORAHEX_KIND_DTMF_INDICATION:
+        return "DTMFIndication";
     default:
         return "";
     }
@@ -199,6 +207,9 @@ static agorahex_kind_t kind_from_cstr(const char *k) {
     }
     if (strcmp(k, "StopContentIndication") == 0) {
         return AGORAHEX_KIND_STOP_CONTENT_INDICATION;
+    }
+    if (strcmp(k, "DTMFIndication") == 0) {
+        return AGORAHEX_KIND_DTMF_INDICATION;
     }
     return (agorahex_kind_t)-1;
 }
@@ -280,6 +291,20 @@ static void parse_video_track(const cJSON *obj, agorahex_video_track_t *out) {
     }
 }
 
+static void parse_avc_resolution(const cJSON *obj, agorahex_avc_resolution_t *out) {
+    if (!obj || !cJSON_IsObject(obj)) {
+        return;
+    }
+    const cJSON *it = cJSON_GetObjectItemCaseSensitive(obj, "avcWidth");
+    if (cJSON_IsNumber(it)) {
+        out->avc_width = (int)cJSON_GetNumberValue(it);
+    }
+    it = cJSON_GetObjectItemCaseSensitive(obj, "avcHeight");
+    if (cJSON_IsNumber(it)) {
+        out->avc_height = (int)cJSON_GetNumberValue(it);
+    }
+}
+
 static void parse_media_endpoint(const cJSON *obj, agorahex_media_endpoint_t *out) {
     if (!obj || !cJSON_IsObject(obj)) {
         return;
@@ -313,7 +338,11 @@ static void parse_avc_signal_leg(const cJSON *obj, agorahex_avc_signal_leg_t *ou
     }
     const cJSON *inner = cJSON_GetObjectItemCaseSensitive(obj, "avcEndpoint");
     const cJSON *src = cJSON_IsObject(inner) ? inner : obj;
-    const cJSON *it = cJSON_GetObjectItemCaseSensitive(src, "signalType");
+    const cJSON *it = cJSON_GetObjectItemCaseSensitive(src, "displayName");
+    if (cJSON_IsString(it)) {
+        out->display_name = dup_or_null(cJSON_GetStringValue(it));
+    }
+    it = cJSON_GetObjectItemCaseSensitive(src, "signalType");
     if (cJSON_IsString(it)) {
         out->signal_type = dup_or_null(cJSON_GetStringValue(it));
     }
@@ -432,6 +461,10 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
             x->return_code = (int)cJSON_GetNumberValue(it);
         }
         parse_media_endpoint(cJSON_GetObjectItemCaseSensitive(body, "agoraEndpoint"), &x->agora_endpoint);
+        parse_avc_resolution(cJSON_GetObjectItemCaseSensitive(body, "maxPeopleResolution"),
+                             &x->max_people_resolution);
+        parse_avc_resolution(cJSON_GetObjectItemCaseSensitive(body, "maxContentResolution"),
+                             &x->max_content_resolution);
         return AGORAHEX_OK;
     }
     case AGORAHEX_KIND_HANGUP_INDICATION: {
@@ -503,6 +536,18 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
         const cJSON *it = cJSON_GetObjectItemCaseSensitive(body, "callId");
         if (cJSON_IsString(it)) {
             x->call_id = dup_or_null(cJSON_GetStringValue(it));
+        }
+        return AGORAHEX_OK;
+    }
+    case AGORAHEX_KIND_DTMF_INDICATION: {
+        agorahex_dtmf_indication_t *x = &out->u.dtmf_indication;
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(body, "callId");
+        if (cJSON_IsString(it)) {
+            x->call_id = dup_or_null(cJSON_GetStringValue(it));
+        }
+        it = cJSON_GetObjectItemCaseSensitive(body, "event");
+        if (cJSON_IsString(it)) {
+            x->event = dup_or_null(cJSON_GetStringValue(it));
         }
         return AGORAHEX_OK;
     }
@@ -612,6 +657,16 @@ static cJSON *json_video_track(const agorahex_video_track_t *v) {
     return o;
 }
 
+static cJSON *json_avc_resolution(const agorahex_avc_resolution_t *resolution) {
+    cJSON *o = cJSON_CreateObject();
+    if (!o) {
+        return NULL;
+    }
+    cJSON_AddNumberToObject(o, "avcWidth", (double)resolution->avc_width);
+    cJSON_AddNumberToObject(o, "avcHeight", (double)resolution->avc_height);
+    return o;
+}
+
 static cJSON *json_media_endpoint(const agorahex_media_endpoint_t *m) {
     cJSON *o = cJSON_CreateObject();
     if (!o) {
@@ -662,6 +717,9 @@ static cJSON *json_avc_signal_inner(const agorahex_avc_signal_leg_t *leg) {
     if (!o) {
         return NULL;
     }
+    if (leg->display_name) {
+        cJSON_AddStringToObject(o, "displayName", leg->display_name);
+    }
     if (leg->signal_type) {
         cJSON_AddStringToObject(o, "signalType", leg->signal_type);
     }
@@ -684,20 +742,6 @@ static cJSON *json_avc_signal_inner(const agorahex_avc_signal_leg_t *leg) {
     return o;
 }
 
-static cJSON *json_avc_signal_wrapped(const agorahex_avc_signal_leg_t *leg) {
-    cJSON *inner = json_avc_signal_inner(leg);
-    if (!inner) {
-        return NULL;
-    }
-    cJSON *w = cJSON_CreateObject();
-    if (!w) {
-        cJSON_Delete(inner);
-        return NULL;
-    }
-    cJSON_AddItemToObject(w, "avcEndpoint", inner);
-    return w;
-}
-
 static cJSON *json_media_caps(const agorahex_media_capabilities_t *c) {
     cJSON *o = cJSON_CreateObject();
     if (!o) {
@@ -718,7 +762,7 @@ static cJSON *json_avc_dial_endpoint(const agorahex_avc_dial_endpoint_t *e) {
     if (!o) {
         return NULL;
     }
-    cJSON *leg = json_avc_signal_wrapped(&e->avc_endpoint);
+    cJSON *leg = json_avc_signal_inner(&e->avc_endpoint);
     cJSON *p = json_media_caps(&e->people_property);
     cJSON *c = json_media_caps(&e->content_property);
     if (!leg || !p || !c) {
@@ -811,12 +855,19 @@ agorahex_result_t agorahex_marshal_envelope(const agorahex_message_t *msg, char 
         }
         cJSON_AddNumberToObject(body, "returnCode", (double)x->return_code);
         cJSON *ae = json_media_endpoint(&x->agora_endpoint);
-        if (!ae) {
+        cJSON *max_people = json_avc_resolution(&x->max_people_resolution);
+        cJSON *max_content = json_avc_resolution(&x->max_content_resolution);
+        if (!ae || !max_people || !max_content) {
+            cJSON_Delete(ae);
+            cJSON_Delete(max_people);
+            cJSON_Delete(max_content);
             cJSON_Delete(body);
             body = NULL;
             break;
         }
         cJSON_AddItemToObject(body, "agoraEndpoint", ae);
+        cJSON_AddItemToObject(body, "maxPeopleResolution", max_people);
+        cJSON_AddItemToObject(body, "maxContentResolution", max_content);
         break;
     }
     case AGORAHEX_KIND_HANGUP_INDICATION: {

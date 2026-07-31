@@ -37,6 +37,11 @@ typedef struct agorahex_video_track {
     int fps;
 } agorahex_video_track_t;
 
+typedef struct agorahex_avc_resolution {
+    int avc_width;
+    int avc_height;
+} agorahex_avc_resolution_t;
+
 typedef struct agorahex_media_endpoint {
     agorahex_display_info_t agora_endpoint;
     int call_bitrate;
@@ -57,6 +62,7 @@ typedef struct agorahex_avc_signal_leg {
     char *e164;
     char *conference_id;
     char *url;
+    char *display_name;
 } agorahex_avc_signal_leg_t;
 
 typedef struct agorahex_media_capabilities {
@@ -91,6 +97,8 @@ typedef struct agorahex_avc_dial_in_reply {
     char *call_id;
     int return_code;
     agorahex_media_endpoint_t agora_endpoint;
+    agorahex_avc_resolution_t max_people_resolution;
+    agorahex_avc_resolution_t max_content_resolution;
 } agorahex_avc_dial_in_reply_t;
 
 typedef struct agorahex_hangup_indication {
@@ -124,6 +132,11 @@ typedef struct agorahex_avc_start_content_replay {
 typedef struct agorahex_stop_content_indication {
     char *call_id;
 } agorahex_stop_content_indication_t;
+
+typedef struct agorahex_dtmf_indication {
+    char *call_id;
+    char *event;
+} agorahex_dtmf_indication_t;
 
 #ifdef __cplusplus
 }
