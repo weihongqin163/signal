@@ -9,7 +9,7 @@
 
 ## 已定决策（与当前实现对齐）
 
-1. **交付范围**：除协议库与单元测试外，包含较完整的 TCP demo，包括独立 client/server、可配置监听地址/端口，以及按消息类型与 `callId` 输出日志。
+1. **交付范围**：除协议库与单元测试外，包含较完整的 TCP demo，包括独立 client/server；server 监听所有本机 IPv4 接口且端口可配置，client 的目标数字 IPv4 地址和端口可配置，并按消息类型与 `callId` 输出日志。
 2. **实现语言**：**C11**，使用根目录 `Makefile` 构建，JSON 解析/序列化依赖仓库内嵌的 `cJSON`，帧头长度字段使用大端 `uint32`。
 
 ## 文档依据（已读 PDF，忽略序列图）
@@ -77,12 +77,12 @@ flowchart LR
 ```bash
 make
 make test
-./build/hexagora-server -listen :9876
-./build/hexagora-client -addr 127.0.0.1:9876 -sample hangup
-./build/hexagora-client -addr 127.0.0.1:9876 -file docs/json_msg/HangupIndication.txt
+./build/hexagora-server -port 9876
+./build/hexagora-client -server-ipv4-addr 127.0.0.1 -port 9876 -sample hangup
+./build/hexagora-client -server-ipv4-addr 127.0.0.1 -port 9876 -file docs/json_msg/HangupIndication.txt
 ```
 
-`make test` 会执行 `tests/test_framing.c`、`tests/test_envelope.c`、`tests/test_samples.c`；其中 `test_samples` 由 `Makefile` 切换到 `docs/` 目录运行，以校验 `docs/json_msg/` 下的样例消息。
+`make test` 会执行 `tests/test_framing.c`、`tests/test_envelope.c`、`tests/test_samples.c`、`tests/test_signal_tcp.c`；其中 `test_samples` 由 `Makefile` 切换到 `docs/` 目录运行，以校验 `docs/json_msg/` 下的样例消息，`test_signal_tcp` 覆盖 TCP client/server 启动、连接与收发回归。
 
 ## 当前交付物（C，与实现对齐）
 
