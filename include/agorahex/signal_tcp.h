@@ -32,7 +32,7 @@ extern "C" {
 typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex_message_t *msg_t);
 
 /**
- * Starts the local TCP signal runtime in client or server mode.
+ * Starts the TCP signal runtime in client or server mode.
  * Usage:
  *   1. Provide a required numeric IPv4 address string and a non-NULL callback.
  *   2. Call this function once before agorahex_signal_send() or agorahex_signal_poll().
@@ -49,7 +49,8 @@ typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex
  *   AGORAHEX_ERR_ALREADY_STARTED if the runtime is already active.
  *   AGORAHEX_ERR_INVALID_ARG if mode, address, port, or callback is invalid; NULL and malformed IPv4
  *   addresses are rejected in both client and server modes without starting the runtime.
- *   AGORAHEX_ERR_IO if socket setup, bind, listen, or connect initialization fails.
+ *   AGORAHEX_ERR_IO if server socket setup, bind, or listen fails.
+ * Client connection failures are retried by agorahex_signal_poll().
  */
 int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb);
 

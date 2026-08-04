@@ -692,6 +692,7 @@ static void close_server_mode(void) {
 
 static void close_client_mode(void) {
     conn_reset(&g_runtime.client.conn);
+    memset(g_runtime.client.server_ipv4_addr, 0, sizeof g_runtime.client.server_ipv4_addr);
     g_runtime.client.running = 0;
     g_runtime.client.cb = NULL;
     g_runtime.client.tcp_port = 0;
