@@ -34,21 +34,24 @@ typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex
 /**
  * Starts the local TCP signal runtime in client or server mode.
  * Usage:
- *   1. Provide a non-NULL callback.
+ *   1. Provide a required numeric IPv4 address string and a non-NULL callback.
  *   2. Call this function once before agorahex_signal_send() or agorahex_signal_poll().
  *   3. After success, repeatedly call agorahex_signal_poll() to drive connect/accept/read events.
  *   4. Call agorahex_signal_close() when finished.
  * Parameters:
- *   server_mode - AGORAHEX_SIGNAL_CLIENT_MODE or AGORAHEX_SIGNAL_SERVER_MODE.
- *   tcp_port    - local TCP port on 127.0.0.1, valid range 1..65535.
- *   cb          - receive callback for decoded JSON messages.
+ *   server_mode      - AGORAHEX_SIGNAL_CLIENT_MODE or AGORAHEX_SIGNAL_SERVER_MODE.
+ *   server_ipv4_addr - required numeric IPv4 string. Client mode connects to this address; server mode
+ *                      validates it but listens on all local IPv4 interfaces.
+ *   tcp_port         - server TCP port, valid range 1..65535.
+ *   cb               - receive callback for decoded JSON messages.
  * Returns:
  *   AGORAHEX_OK on success.
  *   AGORAHEX_ERR_ALREADY_STARTED if the runtime is already active.
- *   AGORAHEX_ERR_INVALID_ARG if mode, port, or callback is invalid.
+ *   AGORAHEX_ERR_INVALID_ARG if mode, address, port, or callback is invalid; NULL and malformed IPv4
+ *   addresses are rejected in both client and server modes without starting the runtime.
  *   AGORAHEX_ERR_IO if socket setup, bind, listen, or connect initialization fails.
  */
-int agorahex_signal_start(int server_mode, int tcp_port, agorahex_signal_cb_t cb);
+int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb);
 
 /**
  * Sends one JSON signal envelope over the active TCP signal runtime.

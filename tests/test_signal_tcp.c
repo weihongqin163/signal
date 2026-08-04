@@ -20,6 +20,7 @@
 
 static const char g_ping[] = "{\"HangupIndication\":{\"callId\":\"00000000-0000-0000-0000-000000000001\",\"dropCode\":0}}";
 static const char g_pong[] = "{\"MutedIndication\":{\"callId\":\"00000000-0000-0000-0000-000000000001\",\"muted\":true}}";
+static char g_server_ipv4_addr[] = "127.0.0.2";
 
 static int g_server_received;
 static int g_server_reply_sent;
@@ -62,7 +63,7 @@ static void client_cb(int fd, const void *json, int len, agorahex_message_t *msg
 
 static int run_server(int port) {
     long long deadline = now_ms() + 5000ll;
-    int rc = agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, port, server_cb);
+    int rc = agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, g_server_ipv4_addr, port, server_cb);
     if (rc != AGORAHEX_OK) {
         if (rc == AGORAHEX_ERR_IO) {
             fprintf(stderr, "skip: local tcp bind not permitted in this environment\n");
@@ -100,6 +101,16 @@ static int run_server(int port) {
 int main(void) {
     int port = 20000 + (int)(getpid() % 20000);
     int status = 0;
+    char malformed_ipv4_addr[] = "not-an-ipv4-address";
+
+    if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, NULL, port, client_cb) != AGORAHEX_ERR_INVALID_ARG ||
+        agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, malformed_ipv4_addr, port, client_cb) != AGORAHEX_ERR_INVALID_ARG ||
+        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, NULL, port, server_cb) != AGORAHEX_ERR_INVALID_ARG ||
+        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, malformed_ipv4_addr, port, server_cb) != AGORAHEX_ERR_INVALID_ARG) {
+        fprintf(stderr, "invalid server IPv4 address was accepted\n");
+        return 1;
+    }
+
     pid_t pid = fork();
     if (pid < 0) {
         return 1;
@@ -116,7 +127,7 @@ int main(void) {
         }
         return 1;
     }
-    if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, port, client_cb) != AGORAHEX_OK) {
+    if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, g_server_ipv4_addr, port, client_cb) != AGORAHEX_OK) {
         fprintf(stderr, "client: start failed\n");
         kill(pid, SIGKILL);
         waitpid(pid, NULL, 0);

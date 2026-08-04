@@ -47,6 +47,7 @@ typedef struct agorahex_signal_server {
 
 typedef struct agorahex_signal_client {
     agorahex_signal_conn_t conn;
+    char server_ipv4_addr[INET_ADDRSTRLEN];
     int tcp_port;
     int running;
     agorahex_signal_cb_t cb;
@@ -73,7 +74,7 @@ static int set_nonblocking(int fd);
 static int set_no_sigpipe(int fd);
 static int create_stream_socket(void);
 static int start_server(int tcp_port, agorahex_signal_cb_t cb);
-static int start_client(int tcp_port, agorahex_signal_cb_t cb);
+static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb);
 static void close_server_mode(void);
 static void close_client_mode(void);
 static int validate_signal_payload(const void *json, int len);
@@ -133,6 +134,7 @@ static void runtime_reset(void) {
         conn_reset(&g_runtime.server.clients[i]);
     }
 
+    memset(g_runtime.client.server_ipv4_addr, 0, sizeof g_runtime.client.server_ipv4_addr);
     g_runtime.client.tcp_port = 0;
     g_runtime.client.running = 0;
     g_runtime.client.cb = NULL;
@@ -212,10 +214,7 @@ static int start_server(int tcp_port, agorahex_signal_cb_t cb) {
     memset(&addr, 0, sizeof addr);
     addr.sin_family = AF_INET;
     addr.sin_port = htons((uint16_t)tcp_port);
-    if (inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) != 1) {
-        close(fd);
-        return AGORAHEX_ERR_IO;
-    }
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(fd, (struct sockaddr *)&addr, sizeof addr) != 0) {
         close(fd);
         return AGORAHEX_ERR_IO;
@@ -237,8 +236,9 @@ static int start_server(int tcp_port, agorahex_signal_cb_t cb) {
     return AGORAHEX_OK;
 }
 
-static int start_client(int tcp_port, agorahex_signal_cb_t cb) {
+static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb) {
     g_runtime.mode = AGORAHEX_SIGNAL_CLIENT_MODE;
+    strcpy(g_runtime.client.server_ipv4_addr, server_ipv4_addr);
     g_runtime.client.tcp_port = tcp_port;
     g_runtime.client.running = 1;
     g_runtime.client.cb = cb;
@@ -247,19 +247,21 @@ static int start_client(int tcp_port, agorahex_signal_cb_t cb) {
     return AGORAHEX_OK;
 }
 
-int agorahex_signal_start(int server_mode, int tcp_port, agorahex_signal_cb_t cb) {
+int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb) {
+    struct in_addr parsed_addr;
+
     ensure_runtime_initialized();
     if (g_runtime.mode != -1) {
         return AGORAHEX_ERR_ALREADY_STARTED;
     }
     if ((server_mode != AGORAHEX_SIGNAL_CLIENT_MODE && server_mode != AGORAHEX_SIGNAL_SERVER_MODE) || !cb ||
-        tcp_port <= 0 || tcp_port > 65535) {
+        !server_ipv4_addr || inet_pton(AF_INET, server_ipv4_addr, &parsed_addr) != 1 || tcp_port <= 0 || tcp_port > 65535) {
         return AGORAHEX_ERR_INVALID_ARG;
     }
     if (server_mode == AGORAHEX_SIGNAL_SERVER_MODE) {
         return start_server(tcp_port, cb);
     }
-    return start_client(tcp_port, cb);
+    return start_client(server_ipv4_addr, tcp_port, cb);
 }
 
 static int write_all_or_close(agorahex_signal_conn_t *conn, const uint8_t *buf, size_t len) {
@@ -584,8 +586,9 @@ static int client_begin_connect(agorahex_signal_client_t *client) {
     memset(&addr, 0, sizeof addr);
     addr.sin_family = AF_INET;
     addr.sin_port = htons((uint16_t)client->tcp_port);
-    if (inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) != 1) {
-        conn_reset(&client->conn);
+    if (inet_pton(AF_INET, client->server_ipv4_addr, &addr.sin_addr) != 1) {
+        close(fd);
+        client->conn.state = AGORAHEX_SIGNAL_CONN_DISCONNECTED;
         return AGORAHEX_ERR_IO;
     }
 
