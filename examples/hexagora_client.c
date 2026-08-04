@@ -138,11 +138,14 @@ static int build_sample(const char *sample, char **out_json, size_t *out_len) {
 }
 
 static void usage(const char *argv0) {
-    fprintf(stderr, "usage: %s -port tcp_port (-file envelope.json | -sample hangup|muted|start_content_request)\n",
+    fprintf(stderr,
+            "usage: %s [-server-ipv4-addr address] -port tcp_port "
+            "(-file envelope.json | -sample hangup|muted|start_content_request)\n",
             argv0);
 }
 
 int main(int argc, char **argv) {
+    char *server_ipv4_addr = "127.0.0.1";
     int port = 9876;
     const char *file = NULL;
     const char *sample = NULL;
@@ -153,6 +156,8 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-port") == 0 && i + 1 < argc) {
             port = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "-server-ipv4-addr") == 0 && i + 1 < argc) {
+            server_ipv4_addr = argv[++i];
         } else if (strcmp(argv[i], "-file") == 0 && i + 1 < argc) {
             file = argv[++i];
         } else if (strcmp(argv[i], "-sample") == 0 && i + 1 < argc) {
@@ -190,7 +195,7 @@ int main(int argc, char **argv) {
     memset(&chk, 0, sizeof chk);
     rc = agorahex_parse_envelope(payload, payload_len, &chk);
     if (rc != AGORAHEX_OK) {
-        fprintf(stderr, "parse_envelope_local err=%d (%s)\n", rc, agorahex_strerror((agorahex_result_t)rc));
+        fprintf(stderr, "parse_envelope err=%d (%s)\n", rc, agorahex_strerror((agorahex_result_t)rc));
         free(payload);
         return 1;
     }
@@ -202,14 +207,14 @@ int main(int argc, char **argv) {
     sigemptyset(&sa.sa_mask);
     (void)sigaction(SIGINT, &sa, NULL);
 
-    rc = agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, port, client_cb);
+    rc = agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, server_ipv4_addr, port, client_cb);
     if (rc != AGORAHEX_OK) {
         fprintf(stderr, "agorahex_signal_start err=%d (%s)\n", rc, agorahex_strerror((agorahex_result_t)rc));
         free(payload);
         return 1;
     }
 
-    fprintf(stderr, "connecting to local signal tcp port %d\n", port);
+    fprintf(stderr, "connecting to signal server %s:%d\n", server_ipv4_addr, port);
     long long next_send_at = now_ms();
     while (!g_stop) {
         rc = agorahex_signal_poll(200);
@@ -223,7 +228,7 @@ int main(int argc, char **argv) {
         if (now_ms() >= next_send_at) {
             rc = agorahex_signal_send(AGORAHEX_SIGNAL_BROADCAST_FD, payload, (int)payload_len);
             if (rc == AGORAHEX_OK) {
-                fprintf(stderr, "sent %zu bytes to local port %d\n", payload_len, port);
+                fprintf(stderr, "sent %zu bytes to signal server %s:%d\n", payload_len, server_ipv4_addr, port);
             } else if (rc != AGORAHEX_ERR_NOT_CONNECTED) {
                 fprintf(stderr, "agorahex_signal_send err=%d (%s)\n", rc, agorahex_strerror((agorahex_result_t)rc));
                 agorahex_signal_close();

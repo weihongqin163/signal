@@ -86,7 +86,7 @@
 ```c
 typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex_message_t *msg_t);
 
-int agorahex_signal_start(int server_mode, int tcp_port, agorahex_signal_cb_t cb);
+int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb);
 int agorahex_signal_send(int fd, const void *json, int len);
 int agorahex_signal_poll(int timeout_ms);
 void agorahex_signal_close(void);
@@ -147,7 +147,7 @@ void agorahex_signal_close(void);
 考虑到当前对外接口仍然是：
 
 ```c
-int agorahex_signal_start(int server_mode, int tcp_port, agorahex_signal_cb_t cb);
+int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb);
 int agorahex_signal_send(int fd, const void *json, int len);
 int agorahex_signal_poll(int timeout_ms);
 void agorahex_signal_close(void);
@@ -248,6 +248,7 @@ typedef struct agorahex_signal_server {
 ```c
 typedef struct agorahex_signal_client {
     agorahex_signal_conn_t conn;
+    char server_ipv4_addr[INET_ADDRSTRLEN];
     int tcp_port;
     int running;
     agorahex_signal_cb_t cb;
@@ -260,9 +261,13 @@ typedef struct agorahex_signal_client {
   - client 模式下唯一的连接对象
   - 包含 fd、state 标记和 decoder
 
+- `server_ipv4_addr`
+  - 保存 `agorahex_signal_start()` 传入的目标 server 数字 IPv4 地址
+  - 首次连接和断线后的重连都使用该地址
+
 - `tcp_port`
   - 当前尝试连接的目标端口
-  - 由于当前接口没有 `host` 参数，因此默认规划为本机地址上的该端口
+  - 与 `server_ipv4_addr` 共同确定 client 的连接目标
 
 - `running`
   - `1` 表示 client 模式已启动
@@ -278,6 +283,7 @@ typedef struct agorahex_signal_client {
 这个结构的核心职责：
 
 - 保存唯一 client 连接的生命周期
+- 保存指定 server 的数字 IPv4 地址和端口
 - 支撑“未连接时在 `poll()` 中重试 connect，连接后再判断可读”的行为
 
 ### 顶层运行时对象
@@ -335,7 +341,7 @@ typedef struct agorahex_signal_runtime {
    - 新连接到来时优先复用 `fd == -1` 的槽位
    - 如果 8 个槽位都已占用，则拒绝连接并打印 error 信息
 
-5. **当前结构没有加入发送缓冲、重连退避、对端地址信息**
+5. **当前结构保存目标地址，但没有加入发送缓冲和重连退避**
    - 这是因为你目前给出的需求还集中在：
    - 启动
    - 发送
@@ -343,7 +349,8 @@ typedef struct agorahex_signal_runtime {
    - 接收
    - 回调
    - 关闭
-   - 如果后面要加发送能力、地址过滤、重连节流，再补这些字段更合适
+   - client 已保存目标数字 IPv4 地址，首次连接和后续重连都使用该地址
+   - 如果后面要加发送缓冲或重连节流，再补相应字段更合适
 
 6. **线程模型保持简单**
    - 本层默认非线程安全
@@ -359,6 +366,10 @@ typedef struct agorahex_signal_runtime {
 - `server_mode`
   - `1` 表示 server 模式
   - `0` 表示 client 模式
+- `server_ipv4_addr`
+  - 必填的数字 IPv4 地址字符串；`NULL`、主机名和格式错误的 IPv4 地址均无效
+  - client 模式将其作为 server 目标地址
+  - server 模式同样校验该参数，但不将其作为监听地址
 - `tcp_port`
   - server 监听端口，或 client 连接端口
 - `cb`
@@ -369,25 +380,26 @@ typedef struct agorahex_signal_runtime {
 
 - 当 `server_mode == 1`
   - 创建 server socket
-  - 绑定到指定 `tcp_port`
+  - 将监听地址绑定到 `INADDR_ANY`，即所有本机 IPv4 接口上的指定 `tcp_port`
+  - `server_ipv4_addr` 只参与参数校验，不限制监听接口
   - 设置监听
   - 将 server fd 设为 non-blocking
   - 初始化 client fd 列表
 
 - 当 `server_mode == 0`
   - 创建 client socket
-  - 尝试连接到目标端口
+  - 尝试连接到 `server_ipv4_addr:tcp_port`
   - 如果首次连接失败，记录内部状态为 `disconnected`
   - 如果首次连接进入进行中状态，记录内部状态为 `connecting`
   - 如果首次连接成功，记录内部状态为 `connected`
-  - 首次连接失败不视为整体生命周期结束，后续由 `agorahex_signal_poll()` 继续驱动重连尝试
+  - 首次连接失败不视为整体生命周期结束，后续由 `agorahex_signal_poll()` 使用同一目标地址继续驱动重连尝试
 
-当前接口限制：
+地址与重连语义：
 
-- 该接口只有 `tcp_port`，没有 `host` 参数
-- 因此按当前接口定义，client 侧只能规划为连接**本机地址**
-- 文档建议默认目标为 `127.0.0.1:tcp_port`
-- 如果后续需要跨机器连接，接口层应扩展为 `host + port`，否则能力边界不完整
+- client 在启动时保存 `server_ipv4_addr`，首次连接和断线重连始终使用该地址与 `tcp_port`
+- 调用方可传入可路由到远程 server 的数字 IPv4 地址，不限于本机通信
+- server 始终监听 `INADDR_ANY:tcp_port`，接收来自任一本机 IPv4 接口的连接
+- 当前接口只接受数字 IPv4 地址，不解析主机名，也不支持 IPv6 地址
 
 返回语义规划：
 

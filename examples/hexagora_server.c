@@ -74,6 +74,7 @@ static void usage(const char *argv0) {
 }
 
 int main(int argc, char **argv) {
+    char server_ipv4_addr[] = "127.0.0.1";
     int port = 9876;
 
     for (int i = 1; i < argc; i++) {
@@ -99,13 +100,13 @@ int main(int argc, char **argv) {
     sigemptyset(&sa.sa_mask);
     (void)sigaction(SIGINT, &sa, NULL);
 
-    int rc = agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, port, server_cb);
+    int rc = agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, server_ipv4_addr, port, server_cb);
     if (rc != AGORAHEX_OK) {
         fprintf(stderr, "agorahex_signal_start err=%d (%s)\n", rc, agorahex_strerror((agorahex_result_t)rc));
         return 1;
     }
 
-    fprintf(stderr, "listening local signal tcp port %d\n", port);
+    fprintf(stderr, "listening for signal TCP connections on 0.0.0.0:%d\n", port);
     while (!g_stop) {
         rc = agorahex_signal_poll(200);
         if (rc != AGORAHEX_OK) {

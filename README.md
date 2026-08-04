@@ -64,7 +64,7 @@ make test
 
 ## 运行示例
 
-启动本机 signal server，默认监听 `127.0.0.1:9876`：
+启动 signal server，监听所有本机 IPv4 接口的 `0.0.0.0:9876`：
 
 ```bash
 ./build/hexagora-server -port 9876
@@ -74,6 +74,12 @@ make test
 
 ```bash
 ./build/hexagora-client -port 9876 -sample hangup
+```
+
+client 默认连接本机 `127.0.0.1:9876`。连接远程 signal server 时，可指定其数字 IPv4 地址：
+
+```bash
+./build/hexagora-client -server-ipv4-addr 192.0.2.10 -port 9876 -sample hangup
 ```
 
 `-sample` 当前支持：
@@ -89,7 +95,7 @@ make test
 ```
 
 server 收到消息后会原样回传，client 会在标准输出打印收到的 JSON。
-以上命令默认都在仓库根目录执行，且示例程序只面向本机进程间通信。
+以上命令默认都在仓库根目录执行；client 可通过 `-server-ipv4-addr` 连接指定数字 IPv4 地址上的 server。
 
 ## 清理
 
@@ -104,7 +110,7 @@ make clean
 - 成帧：`agorahex_frame_encoded_size`、`agorahex_frame_encode`
 - 流式拆帧：`agorahex_frame_decoder_t`、`agorahex_frame_decoder_append`、`agorahex_frame_decoder_reset`
 - 信封解析/序列化：`agorahex_parse_envelope`、`agorahex_marshal_envelope`
-- 本机 TCP signal 层：`agorahex_signal_start`、`agorahex_signal_send`、`agorahex_signal_poll`、`agorahex_signal_close`
+- TCP signal 层：`agorahex_signal_start`、`agorahex_signal_send`、`agorahex_signal_poll`、`agorahex_signal_close`
   - `agorahex_signal_cb_t` 回调会同时提供来源 `fd`、原始 `json/len` 以及已解析的 `agorahex_message_t *`
 - 资源释放：`agorahex_message_free`
 - 错误描述：`agorahex_strerror`
