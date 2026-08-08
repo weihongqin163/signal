@@ -17,10 +17,16 @@ static int fail(const char *m) {
 }
 
 static size_t cjson_fail_allocation_size;
+static size_t cjson_fail_allocation_occurrence;
+static size_t cjson_allocation_occurrence;
 
 static void *fail_cjson_allocation(size_t size) {
     if (size == cjson_fail_allocation_size) {
-        return NULL;
+        cjson_allocation_occurrence++;
+        if (cjson_fail_allocation_occurrence == 0 ||
+            cjson_allocation_occurrence == cjson_fail_allocation_occurrence) {
+            return NULL;
+        }
     }
     return malloc(size);
 }
@@ -282,20 +288,27 @@ static int test_avc_audio_out_of_range_values_ignored(void) {
 }
 
 static int test_avc_new_json_fields_report_allocation_failure(void) {
-    static const size_t fail_sizes[] = {
-        sizeof("userAgent"),
-        sizeof("mediaId"),
-        sizeof("samplerate"),
-        sizeof("channels"),
-        sizeof("bits"),
-        sizeof("audioProperty"),
+    static const struct {
+        size_t size;
+        size_t occurrence;
+    } fail_cases[] = {
+        {sizeof("userAgent"), 0},
+        {sizeof("mediaId"), 0},
+        {sizeof("samplerate"), 0},
+        {sizeof("channels"), 0},
+        {sizeof("bits"), 0},
+        {sizeof("audioProperty"), 0},
+        {sizeof("content"), 2},
+        {sizeof("height"), 2},
     };
     agorahex_message_t m;
     memset(&m, 0, sizeof m);
     m.kind = AGORAHEX_KIND_AVC_DIAL_IN_REQUEST;
     m.u.avc_dial_in_request.avc_endpoint.avc_endpoint.user_agent = agorahex_strdup("agent");
+    m.u.avc_dial_in_request.avc_endpoint.content_property.media_id = agorahex_strdup("content");
     m.u.avc_dial_in_request.avc_endpoint.audio_property.media_id = agorahex_strdup("audio");
     if (!m.u.avc_dial_in_request.avc_endpoint.avc_endpoint.user_agent ||
+        !m.u.avc_dial_in_request.avc_endpoint.content_property.media_id ||
         !m.u.avc_dial_in_request.avc_endpoint.audio_property.media_id) {
         agorahex_message_free(&m);
         return fail("allocate AVC JSON allocation failure fixture");
@@ -305,10 +318,12 @@ static int test_avc_new_json_fields_report_allocation_failure(void) {
         .malloc_fn = fail_cjson_allocation,
         .free_fn = free_cjson_allocation,
     };
-    for (size_t i = 0; i < sizeof(fail_sizes) / sizeof(fail_sizes[0]); ++i) {
+    for (size_t i = 0; i < sizeof(fail_cases) / sizeof(fail_cases[0]); ++i) {
         char *json = NULL;
         size_t json_len = 0;
-        cjson_fail_allocation_size = fail_sizes[i];
+        cjson_fail_allocation_size = fail_cases[i].size;
+        cjson_fail_allocation_occurrence = fail_cases[i].occurrence;
+        cjson_allocation_occurrence = 0;
         cJSON_InitHooks(&hooks);
         const agorahex_result_t result = agorahex_marshal_envelope(&m, &json, &json_len);
         cJSON_InitHooks(NULL);
@@ -319,6 +334,16 @@ static int test_avc_new_json_fields_report_allocation_failure(void) {
         }
     }
     cjson_fail_allocation_size = 0;
+    cjson_fail_allocation_occurrence = 0;
+    cjson_allocation_occurrence = 0;
+    char *json = NULL;
+    size_t json_len = 0;
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK || !json || json_len == 0) {
+        free(json);
+        agorahex_message_free(&m);
+        return fail("restore cJSON hooks after allocation failure");
+    }
+    free(json);
     agorahex_message_free(&m);
     return 0;
 }

@@ -433,7 +433,9 @@ static void parse_audio_capabilities(const cJSON *obj, agorahex_audio_capabiliti
     json_number_to_int(it, &out->bits);
 }
 
-static void parse_avc_dial_endpoint(const cJSON *obj, agorahex_avc_dial_endpoint_t *out) {
+static agorahex_result_t parse_avc_dial_endpoint(const cJSON *obj, agorahex_avc_dial_endpoint_t *out) {
+    const cJSON *content_property = NULL;
+    const cJSON *audio_property = NULL;
     out->audio_property.sample_rate = 48000;
     out->audio_property.channels = 1;
     out->audio_property.bits = 16;
@@ -448,16 +450,37 @@ static void parse_avc_dial_endpoint(const cJSON *obj, agorahex_avc_dial_endpoint
             out->is_audio_only = cJSON_IsTrue(it);
         }
         parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "peopleProperty"), &out->people_property);
-        parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "contentProperty"), &out->content_property);
-        parse_audio_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "audioProperty"), &out->audio_property);
+        content_property = cJSON_GetObjectItemCaseSensitive(obj, "contentProperty");
+        parse_media_capabilities(content_property, &out->content_property);
+        audio_property = cJSON_GetObjectItemCaseSensitive(obj, "audioProperty");
+        parse_audio_capabilities(audio_property, &out->audio_property);
     }
 
     if (!out->audio_property.media_id) {
+        const cJSON *media_id = cJSON_IsObject(audio_property)
+                                    ? cJSON_GetObjectItemCaseSensitive(audio_property, "mediaId")
+                                    : NULL;
+        if (cJSON_IsString(media_id)) {
+            return AGORAHEX_ERR_NO_MEMORY;
+        }
         out->audio_property.media_id = dup_or_null("");
+        if (!out->audio_property.media_id) {
+            return AGORAHEX_ERR_NO_MEMORY;
+        }
     }
     if (!out->content_property.media_id) {
+        const cJSON *media_id = cJSON_IsObject(content_property)
+                                    ? cJSON_GetObjectItemCaseSensitive(content_property, "mediaId")
+                                    : NULL;
+        if (cJSON_IsString(media_id)) {
+            return AGORAHEX_ERR_NO_MEMORY;
+        }
         out->content_property.media_id = dup_or_null("");
+        if (!out->content_property.media_id) {
+            return AGORAHEX_ERR_NO_MEMORY;
+        }
     }
+    return AGORAHEX_OK;
 }
 
 static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body, agorahex_message_t *out) {
@@ -485,7 +508,11 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
         if (cJSON_IsString(it)) {
             x->call_id = dup_or_null(cJSON_GetStringValue(it));
         }
-        parse_avc_dial_endpoint(cJSON_GetObjectItemCaseSensitive(body, "avcEndpoint"), &x->avc_endpoint);
+        agorahex_result_t result =
+            parse_avc_dial_endpoint(cJSON_GetObjectItemCaseSensitive(body, "avcEndpoint"), &x->avc_endpoint);
+        if (result != AGORAHEX_OK) {
+            return result;
+        }
         it = cJSON_GetObjectItemCaseSensitive(body, "conferenceId");
         if (cJSON_IsString(it)) {
             x->conference_id = dup_or_null(cJSON_GetStringValue(it));
@@ -797,13 +824,14 @@ static cJSON *json_media_caps(const agorahex_media_capabilities_t *c) {
     if (!o) {
         return NULL;
     }
-    if (c->media_id) {
-        cJSON_AddStringToObject(o, "mediaId", c->media_id);
+    if ((c->media_id && !cJSON_AddStringToObject(o, "mediaId", c->media_id)) ||
+        !cJSON_AddNumberToObject(o, "bitrate", (double)c->bitrate) ||
+        !cJSON_AddNumberToObject(o, "width", (double)c->width) ||
+        !cJSON_AddNumberToObject(o, "height", (double)c->height) ||
+        !cJSON_AddNumberToObject(o, "fps", (double)c->fps)) {
+        cJSON_Delete(o);
+        return NULL;
     }
-    cJSON_AddNumberToObject(o, "bitrate", (double)c->bitrate);
-    cJSON_AddNumberToObject(o, "width", (double)c->width);
-    cJSON_AddNumberToObject(o, "height", (double)c->height);
-    cJSON_AddNumberToObject(o, "fps", (double)c->fps);
     return o;
 }
 
