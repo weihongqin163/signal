@@ -63,6 +63,7 @@ typedef struct agorahex_avc_signal_leg {
     char *conference_id;
     char *url;
     char *display_name;
+    char *user_agent;
 } agorahex_avc_signal_leg_t;
 
 typedef struct agorahex_media_capabilities {
@@ -73,11 +74,19 @@ typedef struct agorahex_media_capabilities {
     int fps;
 } agorahex_media_capabilities_t;
 
+typedef struct agorahex_audio_capabilities {
+    char *media_id;
+    int sample_rate;
+    int channels;
+    int bits;
+} agorahex_audio_capabilities_t;
+
 typedef struct agorahex_avc_dial_endpoint {
     agorahex_avc_signal_leg_t avc_endpoint;
     bool is_audio_only;
     agorahex_media_capabilities_t people_property;
     agorahex_media_capabilities_t content_property;
+    agorahex_audio_capabilities_t audio_property;
 } agorahex_avc_dial_endpoint_t;
 
 typedef struct agorahex_agora_dial_in_indication {

@@ -59,6 +59,7 @@ static void free_avc_signal_leg(agorahex_avc_signal_leg_t *leg) {
     free(leg->conference_id);
     free(leg->url);
     free(leg->display_name);
+    free(leg->user_agent);
     memset(leg, 0, sizeof(*leg));
 }
 
@@ -89,6 +90,7 @@ void agorahex_message_free(agorahex_message_t *m) {
         free_avc_signal_leg(&x->avc_endpoint.avc_endpoint);
         free(x->avc_endpoint.people_property.media_id);
         free(x->avc_endpoint.content_property.media_id);
+        free(x->avc_endpoint.audio_property.media_id);
         memset(x, 0, sizeof(*x));
         break;
     }
@@ -342,6 +344,10 @@ static void parse_avc_signal_leg(const cJSON *obj, agorahex_avc_signal_leg_t *ou
     if (cJSON_IsString(it)) {
         out->display_name = dup_or_null(cJSON_GetStringValue(it));
     }
+    it = cJSON_GetObjectItemCaseSensitive(src, "userAgent");
+    if (cJSON_IsString(it)) {
+        out->user_agent = dup_or_null(cJSON_GetStringValue(it));
+    }
     it = cJSON_GetObjectItemCaseSensitive(src, "signalType");
     if (cJSON_IsString(it)) {
         out->signal_type = dup_or_null(cJSON_GetStringValue(it));
@@ -398,6 +404,28 @@ static void parse_media_capabilities(const cJSON *obj, agorahex_media_capabiliti
     }
 }
 
+static void parse_audio_capabilities(const cJSON *obj, agorahex_audio_capabilities_t *out) {
+    if (!obj || !cJSON_IsObject(obj)) {
+        return;
+    }
+    const cJSON *it = cJSON_GetObjectItemCaseSensitive(obj, "mediaId");
+    if (cJSON_IsString(it)) {
+        out->media_id = dup_or_null(cJSON_GetStringValue(it));
+    }
+    it = cJSON_GetObjectItemCaseSensitive(obj, "samplerate");
+    if (cJSON_IsNumber(it)) {
+        out->sample_rate = (int)cJSON_GetNumberValue(it);
+    }
+    it = cJSON_GetObjectItemCaseSensitive(obj, "channels");
+    if (cJSON_IsNumber(it)) {
+        out->channels = (int)cJSON_GetNumberValue(it);
+    }
+    it = cJSON_GetObjectItemCaseSensitive(obj, "bits");
+    if (cJSON_IsNumber(it)) {
+        out->bits = (int)cJSON_GetNumberValue(it);
+    }
+}
+
 static void parse_avc_dial_endpoint(const cJSON *obj, agorahex_avc_dial_endpoint_t *out) {
     if (!obj || !cJSON_IsObject(obj)) {
         return;
@@ -412,6 +440,7 @@ static void parse_avc_dial_endpoint(const cJSON *obj, agorahex_avc_dial_endpoint
     }
     parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "peopleProperty"), &out->people_property);
     parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "contentProperty"), &out->content_property);
+    parse_audio_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "audioProperty"), &out->audio_property);
 }
 
 static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body, agorahex_message_t *out) {
@@ -720,6 +749,9 @@ static cJSON *json_avc_signal_inner(const agorahex_avc_signal_leg_t *leg) {
     if (leg->display_name) {
         cJSON_AddStringToObject(o, "displayName", leg->display_name);
     }
+    if (leg->user_agent) {
+        cJSON_AddStringToObject(o, "userAgent", leg->user_agent);
+    }
     if (leg->signal_type) {
         cJSON_AddStringToObject(o, "signalType", leg->signal_type);
     }
@@ -757,6 +789,20 @@ static cJSON *json_media_caps(const agorahex_media_capabilities_t *c) {
     return o;
 }
 
+static cJSON *json_audio_caps(const agorahex_audio_capabilities_t *c) {
+    cJSON *o = cJSON_CreateObject();
+    if (!o) {
+        return NULL;
+    }
+    if (c->media_id) {
+        cJSON_AddStringToObject(o, "mediaId", c->media_id);
+    }
+    cJSON_AddNumberToObject(o, "samplerate", (double)c->sample_rate);
+    cJSON_AddNumberToObject(o, "channels", (double)c->channels);
+    cJSON_AddNumberToObject(o, "bits", (double)c->bits);
+    return o;
+}
+
 static cJSON *json_avc_dial_endpoint(const agorahex_avc_dial_endpoint_t *e) {
     cJSON *o = cJSON_CreateObject();
     if (!o) {
@@ -765,10 +811,12 @@ static cJSON *json_avc_dial_endpoint(const agorahex_avc_dial_endpoint_t *e) {
     cJSON *leg = json_avc_signal_inner(&e->avc_endpoint);
     cJSON *p = json_media_caps(&e->people_property);
     cJSON *c = json_media_caps(&e->content_property);
-    if (!leg || !p || !c) {
+    cJSON *a = json_audio_caps(&e->audio_property);
+    if (!leg || !p || !c || !a) {
         cJSON_Delete(leg);
         cJSON_Delete(p);
         cJSON_Delete(c);
+        cJSON_Delete(a);
         cJSON_Delete(o);
         return NULL;
     }
@@ -776,6 +824,7 @@ static cJSON *json_avc_dial_endpoint(const agorahex_avc_dial_endpoint_t *e) {
     cJSON_AddBoolToObject(o, "isAudioOnly", e->is_audio_only ? 1 : 0);
     cJSON_AddItemToObject(o, "peopleProperty", p);
     cJSON_AddItemToObject(o, "contentProperty", c);
+    cJSON_AddItemToObject(o, "audioProperty", a);
     return o;
 }
 

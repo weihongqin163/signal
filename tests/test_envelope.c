@@ -82,6 +82,74 @@ static int test_avc_display_name_roundtrip(void) {
     return 0;
 }
 
+static int test_avc_user_agent_audio_roundtrip(void) {
+    const char *raw =
+        "{\"AVCDialInRequest\":{\"avcEndpoint\":{\"avcEndpoint\":{\"userAgent\":\"Polycom RealPresence "
+        "Group 500\"},\"audioProperty\":{\"mediaId\":\"audio-1\",\"samplerate\":16000,\"channels\":2,\"bits\":24}}}}";
+    agorahex_message_t m;
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK) {
+        return fail("parse AVC user agent and audio property");
+    }
+    const agorahex_avc_dial_endpoint_t *endpoint = &m.u.avc_dial_in_request.avc_endpoint;
+    if (!endpoint->avc_endpoint.user_agent ||
+        strcmp(endpoint->avc_endpoint.user_agent, "Polycom RealPresence Group 500") != 0 ||
+        !endpoint->audio_property.media_id || strcmp(endpoint->audio_property.media_id, "audio-1") != 0 ||
+        endpoint->audio_property.sample_rate != 16000 || endpoint->audio_property.channels != 2 ||
+        endpoint->audio_property.bits != 24) {
+        agorahex_message_free(&m);
+        return fail("AVC user agent and audio property fields");
+    }
+
+    char *json = NULL;
+    size_t json_len = 0;
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK) {
+        agorahex_message_free(&m);
+        return fail("marshal AVC user agent and audio property");
+    }
+    agorahex_message_free(&m);
+
+    cJSON *root = cJSON_ParseWithLength(json, json_len);
+    const cJSON *body = cJSON_GetObjectItemCaseSensitive(root, "AVCDialInRequest");
+    const cJSON *marshaled_endpoint = cJSON_GetObjectItemCaseSensitive(body, "avcEndpoint");
+    const cJSON *signal_leg = cJSON_GetObjectItemCaseSensitive(marshaled_endpoint, "avcEndpoint");
+    const cJSON *user_agent = cJSON_GetObjectItemCaseSensitive(signal_leg, "userAgent");
+    const cJSON *audio = cJSON_GetObjectItemCaseSensitive(marshaled_endpoint, "audioProperty");
+    const cJSON *media_id = cJSON_GetObjectItemCaseSensitive(audio, "mediaId");
+    const cJSON *sample_rate = cJSON_GetObjectItemCaseSensitive(audio, "samplerate");
+    const cJSON *channels = cJSON_GetObjectItemCaseSensitive(audio, "channels");
+    const cJSON *bits = cJSON_GetObjectItemCaseSensitive(audio, "bits");
+    if (!cJSON_IsString(user_agent) ||
+        strcmp(cJSON_GetStringValue(user_agent), "Polycom RealPresence Group 500") != 0 ||
+        !cJSON_IsString(media_id) || strcmp(cJSON_GetStringValue(media_id), "audio-1") != 0 ||
+        !cJSON_IsNumber(sample_rate) || (int)cJSON_GetNumberValue(sample_rate) != 16000 ||
+        !cJSON_IsNumber(channels) || (int)cJSON_GetNumberValue(channels) != 2 || !cJSON_IsNumber(bits) ||
+        (int)cJSON_GetNumberValue(bits) != 24) {
+        cJSON_Delete(root);
+        free(json);
+        return fail("marshaled AVC user agent and audio property paths");
+    }
+    cJSON_Delete(root);
+
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(json, json_len, &m) != AGORAHEX_OK) {
+        free(json);
+        return fail("parse marshaled AVC user agent and audio property");
+    }
+    free(json);
+    endpoint = &m.u.avc_dial_in_request.avc_endpoint;
+    if (!endpoint->avc_endpoint.user_agent ||
+        strcmp(endpoint->avc_endpoint.user_agent, "Polycom RealPresence Group 500") != 0 ||
+        !endpoint->audio_property.media_id || strcmp(endpoint->audio_property.media_id, "audio-1") != 0 ||
+        endpoint->audio_property.sample_rate != 16000 || endpoint->audio_property.channels != 2 ||
+        endpoint->audio_property.bits != 24) {
+        agorahex_message_free(&m);
+        return fail("roundtrip AVC user agent and audio property");
+    }
+    agorahex_message_free(&m);
+    return 0;
+}
+
 static int test_dtmf_indication_parse(void) {
     const char *raw =
         "{\"DTMFIndication\":{\"callId\":\"89b559b9-a4bb-46ff-b819-9ba67b892cdb\",\"event\":\"2\"}}";
@@ -168,7 +236,8 @@ static int test_avc_dial_in_reply_max_resolution_roundtrip(void) {
 
 int main(void) {
     if (test_avc_display_name_empty_value() != 0 || test_avc_display_name_roundtrip() != 0 ||
-        test_dtmf_indication_parse() != 0 || test_avc_dial_in_reply_max_resolution_roundtrip() != 0) {
+        test_avc_user_agent_audio_roundtrip() != 0 || test_dtmf_indication_parse() != 0 ||
+        test_avc_dial_in_reply_max_resolution_roundtrip() != 0) {
         return 1;
     }
 
