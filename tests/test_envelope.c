@@ -163,6 +163,92 @@ static int test_avc_user_agent_audio_roundtrip(void) {
     return 0;
 }
 
+static int test_avc_missing_audio_and_content_properties_default(void) {
+    const char *raw =
+        "{\"AVCDialInRequest\":{\"avcEndpoint\":{\"avcEndpoint\":{}}}}";
+    agorahex_message_t m;
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK) {
+        return fail("parse AVC endpoint without audio and content properties");
+    }
+
+    const agorahex_avc_dial_endpoint_t *endpoint = &m.u.avc_dial_in_request.avc_endpoint;
+    const agorahex_audio_capabilities_t *audio = &endpoint->audio_property;
+    const agorahex_media_capabilities_t *content = &endpoint->content_property;
+    if (!audio->media_id || strcmp(audio->media_id, "") != 0 || audio->sample_rate != 48000 ||
+        audio->channels != 1 || audio->bits != 16 || !content->media_id ||
+        strcmp(content->media_id, "") != 0 || content->bitrate != 0 || content->width != 0 ||
+        content->height != 0 || content->fps != 0) {
+        agorahex_message_free(&m);
+        return fail("default AVC audio and content properties");
+    }
+
+    char *json = NULL;
+    size_t json_len = 0;
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK) {
+        agorahex_message_free(&m);
+        return fail("marshal default AVC audio and content properties");
+    }
+    agorahex_message_free(&m);
+
+    cJSON *root = cJSON_ParseWithLength(json, json_len);
+    const cJSON *body = cJSON_GetObjectItemCaseSensitive(root, "AVCDialInRequest");
+    const cJSON *marshaled_endpoint = cJSON_GetObjectItemCaseSensitive(body, "avcEndpoint");
+    const cJSON *marshaled_audio = cJSON_GetObjectItemCaseSensitive(marshaled_endpoint, "audioProperty");
+    const cJSON *marshaled_content = cJSON_GetObjectItemCaseSensitive(marshaled_endpoint, "contentProperty");
+    const cJSON *audio_media_id = cJSON_GetObjectItemCaseSensitive(marshaled_audio, "mediaId");
+    const cJSON *audio_sample_rate = cJSON_GetObjectItemCaseSensitive(marshaled_audio, "samplerate");
+    const cJSON *audio_channels = cJSON_GetObjectItemCaseSensitive(marshaled_audio, "channels");
+    const cJSON *audio_bits = cJSON_GetObjectItemCaseSensitive(marshaled_audio, "bits");
+    const cJSON *content_media_id = cJSON_GetObjectItemCaseSensitive(marshaled_content, "mediaId");
+    const cJSON *content_bitrate = cJSON_GetObjectItemCaseSensitive(marshaled_content, "bitrate");
+    const cJSON *content_width = cJSON_GetObjectItemCaseSensitive(marshaled_content, "width");
+    const cJSON *content_height = cJSON_GetObjectItemCaseSensitive(marshaled_content, "height");
+    const cJSON *content_fps = cJSON_GetObjectItemCaseSensitive(marshaled_content, "fps");
+    if (!cJSON_IsObject(marshaled_audio) || cJSON_GetArraySize(marshaled_audio) != 4 ||
+        !cJSON_IsString(audio_media_id) || strcmp(cJSON_GetStringValue(audio_media_id), "") != 0 ||
+        !cJSON_IsNumber(audio_sample_rate) || (int)cJSON_GetNumberValue(audio_sample_rate) != 48000 ||
+        !cJSON_IsNumber(audio_channels) || (int)cJSON_GetNumberValue(audio_channels) != 1 ||
+        !cJSON_IsNumber(audio_bits) || (int)cJSON_GetNumberValue(audio_bits) != 16 ||
+        !cJSON_IsObject(marshaled_content) || cJSON_GetArraySize(marshaled_content) != 5 ||
+        !cJSON_IsString(content_media_id) || strcmp(cJSON_GetStringValue(content_media_id), "") != 0 ||
+        !cJSON_IsNumber(content_bitrate) || (int)cJSON_GetNumberValue(content_bitrate) != 0 ||
+        !cJSON_IsNumber(content_width) || (int)cJSON_GetNumberValue(content_width) != 0 ||
+        !cJSON_IsNumber(content_height) || (int)cJSON_GetNumberValue(content_height) != 0 ||
+        !cJSON_IsNumber(content_fps) || (int)cJSON_GetNumberValue(content_fps) != 0) {
+        cJSON_Delete(root);
+        free(json);
+        return fail("marshal default AVC audio and content properties");
+    }
+    cJSON_Delete(root);
+    free(json);
+    return 0;
+}
+
+static int test_avc_partial_audio_and_content_properties_default(void) {
+    const char *raw =
+        "{\"AVCDialInRequest\":{\"avcEndpoint\":{\"audioProperty\":{\"channels\":2},"
+        "\"contentProperty\":{\"bitrate\":2048}}}}";
+    agorahex_message_t m;
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK) {
+        return fail("parse partial AVC audio and content properties");
+    }
+
+    const agorahex_avc_dial_endpoint_t *endpoint = &m.u.avc_dial_in_request.avc_endpoint;
+    const agorahex_audio_capabilities_t *audio = &endpoint->audio_property;
+    const agorahex_media_capabilities_t *content = &endpoint->content_property;
+    if (!audio->media_id || strcmp(audio->media_id, "") != 0 || audio->sample_rate != 48000 ||
+        audio->channels != 2 || audio->bits != 16 || !content->media_id ||
+        strcmp(content->media_id, "") != 0 || content->bitrate != 2048 || content->width != 0 ||
+        content->height != 0 || content->fps != 0) {
+        agorahex_message_free(&m);
+        return fail("partial AVC audio and content property defaults");
+    }
+    agorahex_message_free(&m);
+    return 0;
+}
+
 static int test_avc_audio_out_of_range_values_ignored(void) {
     const char *raw =
         "{\"AVCDialInRequest\":{\"avcEndpoint\":{\"audioProperty\":{\"samplerate\":1e100,"
@@ -173,9 +259,9 @@ static int test_avc_audio_out_of_range_values_ignored(void) {
         return fail("parse out-of-range AVC audio values");
     }
     const agorahex_audio_capabilities_t *audio = &m.u.avc_dial_in_request.avc_endpoint.audio_property;
-    if (audio->sample_rate != 0 || audio->channels != 0 || audio->bits != 0) {
+    if (audio->sample_rate != 48000 || audio->channels != 1 || audio->bits != 16) {
         agorahex_message_free(&m);
-        return fail("ignore out-of-range AVC audio values");
+        return fail("default out-of-range AVC audio values");
     }
     agorahex_message_free(&m);
 
@@ -323,7 +409,10 @@ static int test_avc_dial_in_reply_max_resolution_roundtrip(void) {
 
 int main(void) {
     if (test_avc_display_name_empty_value() != 0 || test_avc_display_name_roundtrip() != 0 ||
-        test_avc_user_agent_audio_roundtrip() != 0 || test_avc_audio_out_of_range_values_ignored() != 0 ||
+        test_avc_user_agent_audio_roundtrip() != 0 ||
+        test_avc_missing_audio_and_content_properties_default() != 0 ||
+        test_avc_partial_audio_and_content_properties_default() != 0 ||
+        test_avc_audio_out_of_range_values_ignored() != 0 ||
         test_avc_new_json_fields_report_allocation_failure() != 0 || test_dtmf_indication_parse() != 0 ||
         test_avc_dial_in_reply_max_resolution_roundtrip() != 0) {
         return 1;

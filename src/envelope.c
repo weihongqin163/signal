@@ -434,20 +434,30 @@ static void parse_audio_capabilities(const cJSON *obj, agorahex_audio_capabiliti
 }
 
 static void parse_avc_dial_endpoint(const cJSON *obj, agorahex_avc_dial_endpoint_t *out) {
-    if (!obj || !cJSON_IsObject(obj)) {
-        return;
+    out->audio_property.sample_rate = 48000;
+    out->audio_property.channels = 1;
+    out->audio_property.bits = 16;
+
+    if (obj && cJSON_IsObject(obj)) {
+        const cJSON *legwrap = cJSON_GetObjectItemCaseSensitive(obj, "avcEndpoint");
+        if (cJSON_IsObject(legwrap)) {
+            parse_avc_signal_leg(legwrap, &out->avc_endpoint);
+        }
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(obj, "isAudioOnly");
+        if (cJSON_IsBool(it)) {
+            out->is_audio_only = cJSON_IsTrue(it);
+        }
+        parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "peopleProperty"), &out->people_property);
+        parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "contentProperty"), &out->content_property);
+        parse_audio_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "audioProperty"), &out->audio_property);
     }
-    const cJSON *legwrap = cJSON_GetObjectItemCaseSensitive(obj, "avcEndpoint");
-    if (cJSON_IsObject(legwrap)) {
-        parse_avc_signal_leg(legwrap, &out->avc_endpoint);
+
+    if (!out->audio_property.media_id) {
+        out->audio_property.media_id = dup_or_null("");
     }
-    const cJSON *it = cJSON_GetObjectItemCaseSensitive(obj, "isAudioOnly");
-    if (cJSON_IsBool(it)) {
-        out->is_audio_only = cJSON_IsTrue(it);
+    if (!out->content_property.media_id) {
+        out->content_property.media_id = dup_or_null("");
     }
-    parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "peopleProperty"), &out->people_property);
-    parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "contentProperty"), &out->content_property);
-    parse_audio_capabilities(cJSON_GetObjectItemCaseSensitive(obj, "audioProperty"), &out->audio_property);
 }
 
 static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body, agorahex_message_t *out) {
