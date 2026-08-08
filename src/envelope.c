@@ -8,6 +8,7 @@
 
 #include "cJSON.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -404,6 +405,18 @@ static void parse_media_capabilities(const cJSON *obj, agorahex_media_capabiliti
     }
 }
 
+static bool json_number_to_int(const cJSON *item, int *out) {
+    if (!cJSON_IsNumber(item)) {
+        return false;
+    }
+    const double value = cJSON_GetNumberValue(item);
+    if (value < (double)INT_MIN || value > (double)INT_MAX) {
+        return false;
+    }
+    *out = (int)value;
+    return true;
+}
+
 static void parse_audio_capabilities(const cJSON *obj, agorahex_audio_capabilities_t *out) {
     if (!obj || !cJSON_IsObject(obj)) {
         return;
@@ -413,17 +426,11 @@ static void parse_audio_capabilities(const cJSON *obj, agorahex_audio_capabiliti
         out->media_id = dup_or_null(cJSON_GetStringValue(it));
     }
     it = cJSON_GetObjectItemCaseSensitive(obj, "samplerate");
-    if (cJSON_IsNumber(it)) {
-        out->sample_rate = (int)cJSON_GetNumberValue(it);
-    }
+    json_number_to_int(it, &out->sample_rate);
     it = cJSON_GetObjectItemCaseSensitive(obj, "channels");
-    if (cJSON_IsNumber(it)) {
-        out->channels = (int)cJSON_GetNumberValue(it);
-    }
+    json_number_to_int(it, &out->channels);
     it = cJSON_GetObjectItemCaseSensitive(obj, "bits");
-    if (cJSON_IsNumber(it)) {
-        out->bits = (int)cJSON_GetNumberValue(it);
-    }
+    json_number_to_int(it, &out->bits);
 }
 
 static void parse_avc_dial_endpoint(const cJSON *obj, agorahex_avc_dial_endpoint_t *out) {
@@ -749,8 +756,9 @@ static cJSON *json_avc_signal_inner(const agorahex_avc_signal_leg_t *leg) {
     if (leg->display_name) {
         cJSON_AddStringToObject(o, "displayName", leg->display_name);
     }
-    if (leg->user_agent) {
-        cJSON_AddStringToObject(o, "userAgent", leg->user_agent);
+    if (leg->user_agent && !cJSON_AddStringToObject(o, "userAgent", leg->user_agent)) {
+        cJSON_Delete(o);
+        return NULL;
     }
     if (leg->signal_type) {
         cJSON_AddStringToObject(o, "signalType", leg->signal_type);
@@ -794,12 +802,16 @@ static cJSON *json_audio_caps(const agorahex_audio_capabilities_t *c) {
     if (!o) {
         return NULL;
     }
-    if (c->media_id) {
-        cJSON_AddStringToObject(o, "mediaId", c->media_id);
+    if (c->media_id && !cJSON_AddStringToObject(o, "mediaId", c->media_id)) {
+        cJSON_Delete(o);
+        return NULL;
     }
-    cJSON_AddNumberToObject(o, "samplerate", (double)c->sample_rate);
-    cJSON_AddNumberToObject(o, "channels", (double)c->channels);
-    cJSON_AddNumberToObject(o, "bits", (double)c->bits);
+    if (!cJSON_AddNumberToObject(o, "samplerate", (double)c->sample_rate) ||
+        !cJSON_AddNumberToObject(o, "channels", (double)c->channels) ||
+        !cJSON_AddNumberToObject(o, "bits", (double)c->bits)) {
+        cJSON_Delete(o);
+        return NULL;
+    }
     return o;
 }
 
@@ -824,7 +836,11 @@ static cJSON *json_avc_dial_endpoint(const agorahex_avc_dial_endpoint_t *e) {
     cJSON_AddBoolToObject(o, "isAudioOnly", e->is_audio_only ? 1 : 0);
     cJSON_AddItemToObject(o, "peopleProperty", p);
     cJSON_AddItemToObject(o, "contentProperty", c);
-    cJSON_AddItemToObject(o, "audioProperty", a);
+    if (!cJSON_AddItemToObject(o, "audioProperty", a)) {
+        cJSON_Delete(a);
+        cJSON_Delete(o);
+        return NULL;
+    }
     return o;
 }
 

@@ -16,6 +16,19 @@ static int fail(const char *m) {
     return 1;
 }
 
+static size_t cjson_fail_allocation_size;
+
+static void *fail_cjson_allocation(size_t size) {
+    if (size == cjson_fail_allocation_size) {
+        return NULL;
+    }
+    return malloc(size);
+}
+
+static void free_cjson_allocation(void *ptr) {
+    free(ptr);
+}
+
 static int test_avc_display_name_empty_value(void) {
     const char *raw =
         "{\"AVCDialInRequest\":{\"avcEndpoint\":{\"avcEndpoint\":{\"displayName\":\"\"}}}}";
@@ -150,6 +163,80 @@ static int test_avc_user_agent_audio_roundtrip(void) {
     return 0;
 }
 
+static int test_avc_audio_out_of_range_values_ignored(void) {
+    const char *raw =
+        "{\"AVCDialInRequest\":{\"avcEndpoint\":{\"audioProperty\":{\"samplerate\":1e100,"
+        "\"channels\":-1e100,\"bits\":1e100}}}}";
+    agorahex_message_t m;
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK) {
+        return fail("parse out-of-range AVC audio values");
+    }
+    const agorahex_audio_capabilities_t *audio = &m.u.avc_dial_in_request.avc_endpoint.audio_property;
+    if (audio->sample_rate != 0 || audio->channels != 0 || audio->bits != 0) {
+        agorahex_message_free(&m);
+        return fail("ignore out-of-range AVC audio values");
+    }
+    agorahex_message_free(&m);
+
+    raw =
+        "{\"AVCDialInRequest\":{\"avcEndpoint\":{\"audioProperty\":{\"samplerate\":0,"
+        "\"channels\":0,\"bits\":0}}}}";
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK) {
+        return fail("parse zero AVC audio values");
+    }
+    audio = &m.u.avc_dial_in_request.avc_endpoint.audio_property;
+    if (audio->sample_rate != 0 || audio->channels != 0 || audio->bits != 0) {
+        agorahex_message_free(&m);
+        return fail("accept zero AVC audio values");
+    }
+    agorahex_message_free(&m);
+    return 0;
+}
+
+static int test_avc_new_json_fields_report_allocation_failure(void) {
+    static const size_t fail_sizes[] = {
+        sizeof("userAgent"),
+        sizeof("mediaId"),
+        sizeof("samplerate"),
+        sizeof("channels"),
+        sizeof("bits"),
+        sizeof("audioProperty"),
+    };
+    agorahex_message_t m;
+    memset(&m, 0, sizeof m);
+    m.kind = AGORAHEX_KIND_AVC_DIAL_IN_REQUEST;
+    m.u.avc_dial_in_request.avc_endpoint.avc_endpoint.user_agent = agorahex_strdup("agent");
+    m.u.avc_dial_in_request.avc_endpoint.audio_property.media_id = agorahex_strdup("audio");
+    if (!m.u.avc_dial_in_request.avc_endpoint.avc_endpoint.user_agent ||
+        !m.u.avc_dial_in_request.avc_endpoint.audio_property.media_id) {
+        agorahex_message_free(&m);
+        return fail("allocate AVC JSON allocation failure fixture");
+    }
+
+    cJSON_Hooks hooks = {
+        .malloc_fn = fail_cjson_allocation,
+        .free_fn = free_cjson_allocation,
+    };
+    for (size_t i = 0; i < sizeof(fail_sizes) / sizeof(fail_sizes[0]); ++i) {
+        char *json = NULL;
+        size_t json_len = 0;
+        cjson_fail_allocation_size = fail_sizes[i];
+        cJSON_InitHooks(&hooks);
+        const agorahex_result_t result = agorahex_marshal_envelope(&m, &json, &json_len);
+        cJSON_InitHooks(NULL);
+        free(json);
+        if (result != AGORAHEX_ERR_NO_MEMORY || json_len != 0) {
+            agorahex_message_free(&m);
+            return fail("report AVC JSON allocation failure");
+        }
+    }
+    cjson_fail_allocation_size = 0;
+    agorahex_message_free(&m);
+    return 0;
+}
+
 static int test_dtmf_indication_parse(void) {
     const char *raw =
         "{\"DTMFIndication\":{\"callId\":\"89b559b9-a4bb-46ff-b819-9ba67b892cdb\",\"event\":\"2\"}}";
@@ -236,7 +323,8 @@ static int test_avc_dial_in_reply_max_resolution_roundtrip(void) {
 
 int main(void) {
     if (test_avc_display_name_empty_value() != 0 || test_avc_display_name_roundtrip() != 0 ||
-        test_avc_user_agent_audio_roundtrip() != 0 || test_dtmf_indication_parse() != 0 ||
+        test_avc_user_agent_audio_roundtrip() != 0 || test_avc_audio_out_of_range_values_ignored() != 0 ||
+        test_avc_new_json_fields_report_allocation_failure() != 0 || test_dtmf_indication_parse() != 0 ||
         test_avc_dial_in_reply_max_resolution_roundtrip() != 0) {
         return 1;
     }
