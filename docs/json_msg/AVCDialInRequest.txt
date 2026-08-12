@@ -1,18 +1,18 @@
-
 {
 "AVCDialInRequest":
 {
- "callId": "a1508ebc-4347-4087-b14b-619f49e4ea53",
+ "callId": "861a6eb3-0bf4-4465-9964-633c772ddc80",
  "avcEndpoint": {
   "avcEndpoint": {
-   "displayName": "",
+   "displayName":"对sip or 323：是注册的名字；对volte：是手机号码",
    "signalType": "H323",
    "encryption": true,
    "ipv4": "192.168.101.3",
    "ipv6": "",
    "e164": "10026",
-   "conferenceId": "10026",
-   "url": "10026@192.168.101.3"
+   "conferenceId": "10026//运营商号码",
+   "url": "10026@192.168.101.3",
+   "userAgent": "sip：终端设备的型号，同sdp里面的user-agent, 如：Polycom RealPresence Group 500"
   },
   "isAudioOnly": false,
   "peopleProperty": {
@@ -27,10 +27,18 @@
    "bitrate": 2048,
    "width": 1920,
    "height": 1080,
-   "fps": 35
+   "fps":30
+  },
+   // audio property: 如果没有，默认是48khz，16bits,mono
+   "audioProperty": {
+   "mediaId": "",
+   "samplerate": 48000,
+   "channels": 1,
+   "bits": 16
   }
  },
- "conferenceId": "01090001",
- "password": ""
+// 彼此互通的
+ "conferenceId": "agora的会议号：如01090001",
+ "password": "agora会议中的pwd",
 }
 }
