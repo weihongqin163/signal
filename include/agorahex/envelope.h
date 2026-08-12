@@ -28,6 +28,8 @@ typedef enum agorahex_kind {
     AGORAHEX_KIND_AVC_START_CONTENT_REPLAY,
     AGORAHEX_KIND_STOP_CONTENT_INDICATION,
     AGORAHEX_KIND_DTMF_INDICATION,
+    AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST,
+    AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY,
 } agorahex_kind_t;
 
 typedef struct agorahex_message {
@@ -36,6 +38,8 @@ typedef struct agorahex_message {
         agorahex_agora_dial_in_indication_t agora_dial_in_indication;
         agorahex_avc_dial_in_request_t avc_dial_in_request;
         agorahex_avc_dial_in_reply_t avc_dial_in_reply;
+        agorahex_agora_dial_out_request_t agora_dial_out_request;
+        agorahex_agora_dial_out_reply_t agora_dial_out_reply;
         agorahex_hangup_indication_t hangup_indication;
         agorahex_muted_indication_t muted_indication;
         agorahex_avc_name_changed_indication_t avc_name_changed_indication;

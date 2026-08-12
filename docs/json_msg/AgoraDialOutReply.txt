@@ -1,0 +1,67 @@
+
+{
+"AgoraDialOutReply":
+{
+ "callId": "103387fb-0caa-431b-8973-4a32a4a443a2",
+ "returnCode": 0,
+"avcEndpoint": {
+   "displayName":"对sip or 323：是agora分配的名字；对volte：是手机号码，或者是分配的名字",
+   "signalType": "H323",
+   "encryption": true,
+   "ipv4": "192.168.101.3",
+   "ipv6": "",
+   "e164": "对sip是短号，对volte是用户手机号码",
+   "conferenceId": "对sip是接入的sip Gateway地址；对volte是运营商号码",
+   "url": "e164@conferenceId, 也就是标准的e164格式",
+   "userAgent": "sip：终端设备的型号，同sdp里面的user-agent, 如：Polycom RealPresence Group 500"
+  },
+  "isAudioOnly": false,
+  "peopleProperty": {
+   "mediaId": "和request保持一致",
+   "bitrate": 4096,
+   "width": 1920,
+   "height": 1080,
+   "fps": 30
+  },
+  "contentProperty": {
+   "mediaId": "和request保持一致",
+   "bitrate": 2048,
+   "width": 1920,
+   "height": 1080,
+   "fps":30
+  },
+   "audioProperty": {
+   "mediaId": "和request保持一致",
+   "samplerate": 48000,
+   "channels": 1,
+   "bits": 16
+  },
+
+ "maxPeopleResolution": {
+  "avcWidth": 640,
+  "avcHeight": 360
+ },
+ "maxContentResolution": {
+  "avcWidth": 1280,
+  "avcHeight": 720
+ }
+}
+}
+
+//说明：
+//1. callId: 请求的callId
+//2. returnCode: 0表示同意；ringing：表示振铃中；timedout: 超时，没有人应答；其他：表示拒绝。也就是说reply对volte手机是可以多次的。
+    //2.1 通常的sequence是这样的：request
+    //2.2 reply：ringing
+    //2.3 reply：reject or timedout /or accept
+    //2.4 只有在accept的时候，别的参数才有效
+
+//3. avcEndpoint:
+//4. isAudioOnly: 是否是纯音频呼叫。request可以请求视频通话，但reply可以拒绝视频通话，只音频通话。但如果request是true，reply必须也是true
+//5. peopleProperty: 人的属性，是表明volte手机的能力集，也就是上行编码的能力最大值
+//6. contentProperty，people，是表面volte手机的能力集，也就是上行编码的能力最大值
+//7. audioProperty: 音频属性，是协商后的结果；agora和rtc必须用这个值来互相shm pcm数据
+//8. maxPeopleResolution: 是volte端允许的最终编码能力，也就是agora和volte协商后的能力
+//9. maxContentResolution: 是volte端允许的最终编码能力，也就是agora和volte协商后的能力
+//10. mediaId: reply中的mediaId和request中的mediaId保持一致
+//11. avcEndpoint.displayName: 是volte端的用户名，用于显示在agora端;如果没有，就填写为手机号码；对sip来说，就是sip的注册的名字

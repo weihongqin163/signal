@@ -108,6 +108,32 @@ void agorahex_message_free(agorahex_message_t *m) {
         memset(x, 0, sizeof(*x));
         break;
     }
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST: {
+        agorahex_agora_dial_out_request_t *x = &m->u.agora_dial_out_request;
+        free(x->call_id);
+        free_avc_signal_leg(&x->avc_endpoint);
+        free_audio_to_mcu(&x->to_mcu_audio);
+        free_audio_from_mcu(&x->from_mcu_audio);
+        free_video_track(&x->to_gw_video);
+        free_video_track(&x->from_gw_video);
+        free_video_track(&x->to_gw_content);
+        free_video_track(&x->from_gw_content);
+        free(x->conference_id);
+        free(x->conference_name);
+        free(x->password);
+        memset(x, 0, sizeof(*x));
+        break;
+    }
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY: {
+        agorahex_agora_dial_out_reply_t *x = &m->u.agora_dial_out_reply;
+        free(x->call_id);
+        free_avc_signal_leg(&x->avc_endpoint);
+        free(x->people_property.media_id);
+        free(x->content_property.media_id);
+        free(x->audio_property.media_id);
+        memset(x, 0, sizeof(*x));
+        break;
+    }
     case AGORAHEX_KIND_HANGUP_INDICATION:
         free(m->u.hangup_indication.call_id);
         memset(&m->u.hangup_indication, 0, sizeof(m->u.hangup_indication));
@@ -156,6 +182,10 @@ const char *agorahex_kind_cstr(agorahex_kind_t k) {
         return "AVCDialInRequest";
     case AGORAHEX_KIND_AVC_DIAL_IN_REPLY:
         return "AVCDialInReply";
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST:
+        return "AgoraDialOutRequest";
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY:
+        return "AgoraDialOutReply";
     case AGORAHEX_KIND_HANGUP_INDICATION:
         return "HangupIndication";
     case AGORAHEX_KIND_MUTED_INDICATION:
@@ -189,6 +219,12 @@ static agorahex_kind_t kind_from_cstr(const char *k) {
     }
     if (strcmp(k, "AVCDialInReply") == 0) {
         return AGORAHEX_KIND_AVC_DIAL_IN_REPLY;
+    }
+    if (strcmp(k, "AgoraDialOutRequest") == 0) {
+        return AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST;
+    }
+    if (strcmp(k, "AgoraDialOutReply") == 0) {
+        return AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY;
     }
     if (strcmp(k, "HangupIndication") == 0) {
         return AGORAHEX_KIND_HANGUP_INDICATION;
@@ -500,6 +536,69 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
         if (cJSON_IsObject(leg)) {
             parse_avc_signal_leg(leg, &x->avc_leg);
         }
+        return AGORAHEX_OK;
+    }
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST: {
+        agorahex_agora_dial_out_request_t *x = &out->u.agora_dial_out_request;
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(body, "callId");
+        if (cJSON_IsString(it)) {
+            x->call_id = dup_or_null(cJSON_GetStringValue(it));
+        }
+        parse_avc_signal_leg(cJSON_GetObjectItemCaseSensitive(body, "avcEndpoint"), &x->avc_endpoint);
+        it = cJSON_GetObjectItemCaseSensitive(body, "callBitrate");
+        if (cJSON_IsNumber(it)) {
+            x->call_bitrate = (int)cJSON_GetNumberValue(it);
+        }
+        it = cJSON_GetObjectItemCaseSensitive(body, "isAudioOnly");
+        if (cJSON_IsBool(it)) {
+            x->is_audio_only = cJSON_IsTrue(it);
+        }
+        parse_audio_to_mcu(cJSON_GetObjectItemCaseSensitive(body, "toMcuAudioProperty"), &x->to_mcu_audio);
+        parse_audio_from_mcu(cJSON_GetObjectItemCaseSensitive(body, "fromMcuAudioProperty"), &x->from_mcu_audio);
+        parse_video_track(cJSON_GetObjectItemCaseSensitive(body, "toGWVideoProperty"), &x->to_gw_video);
+        parse_video_track(cJSON_GetObjectItemCaseSensitive(body, "fromGWVideoProperty"), &x->from_gw_video);
+        parse_video_track(cJSON_GetObjectItemCaseSensitive(body, "toGWContentProperty"), &x->to_gw_content);
+        parse_video_track(cJSON_GetObjectItemCaseSensitive(body, "fromGWContentProperty"), &x->from_gw_content);
+        parse_avc_resolution(cJSON_GetObjectItemCaseSensitive(body, "maxPeopleResolution"),
+                             &x->max_people_resolution);
+        parse_avc_resolution(cJSON_GetObjectItemCaseSensitive(body, "maxContentResolution"),
+                             &x->max_content_resolution);
+        it = cJSON_GetObjectItemCaseSensitive(body, "conferenceId");
+        if (cJSON_IsString(it)) {
+            x->conference_id = dup_or_null(cJSON_GetStringValue(it));
+        }
+        it = cJSON_GetObjectItemCaseSensitive(body, "conferenceName");
+        if (cJSON_IsString(it)) {
+            x->conference_name = dup_or_null(cJSON_GetStringValue(it));
+        }
+        it = cJSON_GetObjectItemCaseSensitive(body, "password");
+        if (cJSON_IsString(it)) {
+            x->password = dup_or_null(cJSON_GetStringValue(it));
+        }
+        return AGORAHEX_OK;
+    }
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY: {
+        agorahex_agora_dial_out_reply_t *x = &out->u.agora_dial_out_reply;
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(body, "callId");
+        if (cJSON_IsString(it)) {
+            x->call_id = dup_or_null(cJSON_GetStringValue(it));
+        }
+        it = cJSON_GetObjectItemCaseSensitive(body, "returnCode");
+        if (cJSON_IsNumber(it)) {
+            x->return_code = (int)cJSON_GetNumberValue(it);
+        }
+        parse_avc_signal_leg(cJSON_GetObjectItemCaseSensitive(body, "avcEndpoint"), &x->avc_endpoint);
+        it = cJSON_GetObjectItemCaseSensitive(body, "isAudioOnly");
+        if (cJSON_IsBool(it)) {
+            x->is_audio_only = cJSON_IsTrue(it);
+        }
+        parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(body, "peopleProperty"), &x->people_property);
+        parse_media_capabilities(cJSON_GetObjectItemCaseSensitive(body, "contentProperty"), &x->content_property);
+        parse_audio_capabilities(cJSON_GetObjectItemCaseSensitive(body, "audioProperty"), &x->audio_property);
+        parse_avc_resolution(cJSON_GetObjectItemCaseSensitive(body, "maxPeopleResolution"),
+                             &x->max_people_resolution);
+        parse_avc_resolution(cJSON_GetObjectItemCaseSensitive(body, "maxContentResolution"),
+                             &x->max_content_resolution);
         return AGORAHEX_OK;
     }
     case AGORAHEX_KIND_AVC_DIAL_IN_REQUEST: {
@@ -969,6 +1068,96 @@ agorahex_result_t agorahex_marshal_envelope(const agorahex_message_t *msg, char 
             break;
         }
         cJSON_AddItemToObject(body, "agoraEndpoint", ae);
+        cJSON_AddItemToObject(body, "maxPeopleResolution", max_people);
+        cJSON_AddItemToObject(body, "maxContentResolution", max_content);
+        break;
+    }
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST: {
+        const agorahex_agora_dial_out_request_t *x = &msg->u.agora_dial_out_request;
+        body = cJSON_CreateObject();
+        if (!body) {
+            break;
+        }
+        if (x->call_id) {
+            cJSON_AddStringToObject(body, "callId", x->call_id);
+        }
+        cJSON *endpoint = json_avc_signal_inner(&x->avc_endpoint);
+        cJSON *a_to = json_audio_to_mcu(&x->to_mcu_audio);
+        cJSON *a_from = json_audio_from_mcu(&x->from_mcu_audio);
+        cJSON *v_to = json_video_track(&x->to_gw_video);
+        cJSON *v_from = json_video_track(&x->from_gw_video);
+        cJSON *c_to = json_video_track(&x->to_gw_content);
+        cJSON *c_from = json_video_track(&x->from_gw_content);
+        cJSON *max_people = json_avc_resolution(&x->max_people_resolution);
+        cJSON *max_content = json_avc_resolution(&x->max_content_resolution);
+        if (!endpoint || !a_to || !a_from || !v_to || !v_from || !c_to || !c_from || !max_people || !max_content) {
+            cJSON_Delete(endpoint);
+            cJSON_Delete(a_to);
+            cJSON_Delete(a_from);
+            cJSON_Delete(v_to);
+            cJSON_Delete(v_from);
+            cJSON_Delete(c_to);
+            cJSON_Delete(c_from);
+            cJSON_Delete(max_people);
+            cJSON_Delete(max_content);
+            cJSON_Delete(body);
+            body = NULL;
+            break;
+        }
+        cJSON_AddItemToObject(body, "avcEndpoint", endpoint);
+        cJSON_AddNumberToObject(body, "callBitrate", (double)x->call_bitrate);
+        cJSON_AddBoolToObject(body, "isAudioOnly", x->is_audio_only ? 1 : 0);
+        cJSON_AddItemToObject(body, "toMcuAudioProperty", a_to);
+        cJSON_AddItemToObject(body, "fromMcuAudioProperty", a_from);
+        cJSON_AddItemToObject(body, "toGWVideoProperty", v_to);
+        cJSON_AddItemToObject(body, "fromGWVideoProperty", v_from);
+        cJSON_AddItemToObject(body, "toGWContentProperty", c_to);
+        cJSON_AddItemToObject(body, "fromGWContentProperty", c_from);
+        cJSON_AddItemToObject(body, "maxPeopleResolution", max_people);
+        cJSON_AddItemToObject(body, "maxContentResolution", max_content);
+        if (x->conference_id) {
+            cJSON_AddStringToObject(body, "conferenceId", x->conference_id);
+        }
+        if (x->conference_name) {
+            cJSON_AddStringToObject(body, "conferenceName", x->conference_name);
+        }
+        if (x->password) {
+            cJSON_AddStringToObject(body, "password", x->password);
+        }
+        break;
+    }
+    case AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY: {
+        const agorahex_agora_dial_out_reply_t *x = &msg->u.agora_dial_out_reply;
+        body = cJSON_CreateObject();
+        if (!body) {
+            break;
+        }
+        if (x->call_id) {
+            cJSON_AddStringToObject(body, "callId", x->call_id);
+        }
+        cJSON_AddNumberToObject(body, "returnCode", (double)x->return_code);
+        cJSON *endpoint = json_avc_signal_inner(&x->avc_endpoint);
+        cJSON *people = json_media_caps(&x->people_property);
+        cJSON *content = json_media_caps(&x->content_property);
+        cJSON *audio = json_audio_caps(&x->audio_property);
+        cJSON *max_people = json_avc_resolution(&x->max_people_resolution);
+        cJSON *max_content = json_avc_resolution(&x->max_content_resolution);
+        if (!endpoint || !people || !content || !audio || !max_people || !max_content) {
+            cJSON_Delete(endpoint);
+            cJSON_Delete(people);
+            cJSON_Delete(content);
+            cJSON_Delete(audio);
+            cJSON_Delete(max_people);
+            cJSON_Delete(max_content);
+            cJSON_Delete(body);
+            body = NULL;
+            break;
+        }
+        cJSON_AddItemToObject(body, "avcEndpoint", endpoint);
+        cJSON_AddBoolToObject(body, "isAudioOnly", x->is_audio_only ? 1 : 0);
+        cJSON_AddItemToObject(body, "peopleProperty", people);
+        cJSON_AddItemToObject(body, "contentProperty", content);
+        cJSON_AddItemToObject(body, "audioProperty", audio);
         cJSON_AddItemToObject(body, "maxPeopleResolution", max_people);
         cJSON_AddItemToObject(body, "maxContentResolution", max_content);
         break;

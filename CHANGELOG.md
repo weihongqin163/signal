@@ -6,6 +6,17 @@
 
 - 暂无未发布记录。
 
+## [1.0.5] - 2026-08-12
+
+增加 Agora Dial-Out JSON 协议支持。
+
+### 变更
+
+- 新增 `AgoraDialOutRequest` 和 `AgoraDialOutReply` 消息类型及公开 C 数据结构。
+- 增加两个协议的 JSON 解析、序列化和消息内存释放逻辑。
+- 支持 Dial-Out 请求与回复中的 AVC endpoint、音视频属性、媒体能力和最大分辨率字段。
+- 增加协议样例解析、framing 和 JSON round-trip 回归测试。
+
 ## [1.0.1] - 2026-04-30
 
 聚焦 TCP signal 接口命名一致性和头文件可用性增强的小版本更新。

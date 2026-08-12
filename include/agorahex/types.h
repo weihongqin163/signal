@@ -110,6 +110,36 @@ typedef struct agorahex_avc_dial_in_reply {
     agorahex_avc_resolution_t max_content_resolution;
 } agorahex_avc_dial_in_reply_t;
 
+typedef struct agorahex_agora_dial_out_request {
+    char *call_id;
+    agorahex_avc_signal_leg_t avc_endpoint;
+    int call_bitrate;
+    bool is_audio_only;
+    agorahex_audio_to_mcu_t to_mcu_audio;
+    agorahex_audio_from_mcu_t from_mcu_audio;
+    agorahex_video_track_t to_gw_video;
+    agorahex_video_track_t from_gw_video;
+    agorahex_video_track_t to_gw_content;
+    agorahex_video_track_t from_gw_content;
+    agorahex_avc_resolution_t max_people_resolution;
+    agorahex_avc_resolution_t max_content_resolution;
+    char *conference_id;
+    char *conference_name;
+    char *password;
+} agorahex_agora_dial_out_request_t;
+
+typedef struct agorahex_agora_dial_out_reply {
+    char *call_id;
+    int return_code;
+    agorahex_avc_signal_leg_t avc_endpoint;
+    bool is_audio_only;
+    agorahex_media_capabilities_t people_property;
+    agorahex_media_capabilities_t content_property;
+    agorahex_audio_capabilities_t audio_property;
+    agorahex_avc_resolution_t max_people_resolution;
+    agorahex_avc_resolution_t max_content_resolution;
+} agorahex_agora_dial_out_reply_t;
+
 typedef struct agorahex_hangup_indication {
     char *call_id;
     int drop_code;

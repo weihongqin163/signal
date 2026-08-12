@@ -432,6 +432,99 @@ static int test_avc_dial_in_reply_max_resolution_roundtrip(void) {
     return 0;
 }
 
+static int test_agora_dial_out_request_roundtrip(void) {
+    const char *raw =
+        "{\"AgoraDialOutRequest\":{\"callId\":\"call-out-1\",\"avcEndpoint\":{"
+        "\"signalType\":\"SIP\",\"e164\":\"10026\",\"conferenceId\":\"gw.example\"},"
+        "\"callBitrate\":8192,\"isAudioOnly\":false,\"toMcuAudioProperty\":{\"mediaId\":\"a-to\"},"
+        "\"fromMcuAudioProperty\":{\"mediaId\":\"a-from\"},\"toGWVideoProperty\":{\"mediaId\":\"v-to\"},"
+        "\"fromGWVideoProperty\":{\"mediaId\":\"v-from\"},\"toGWContentProperty\":{\"mediaId\":\"c-to\"},"
+        "\"fromGWContentProperty\":{\"mediaId\":\"c-from\"},\"maxPeopleResolution\":{\"avcWidth\":640,\"avcHeight\":360},"
+        "\"maxContentResolution\":{\"avcWidth\":1280,\"avcHeight\":720},\"conferenceId\":\"conf-1\","
+        "\"conferenceName\":\"Weekly Sync\"}}";
+    agorahex_message_t m;
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK ||
+        m.kind != AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST) {
+        agorahex_message_free(&m);
+        return fail("parse Agora dial-out request");
+    }
+    const agorahex_agora_dial_out_request_t *x = &m.u.agora_dial_out_request;
+    if (!x->call_id || strcmp(x->call_id, "call-out-1") != 0 || x->call_bitrate != 8192 ||
+        !x->avc_endpoint.signal_type || strcmp(x->avc_endpoint.signal_type, "SIP") != 0 ||
+        !x->from_mcu_audio.media_id || strcmp(x->from_mcu_audio.media_id, "a-from") != 0 ||
+        !x->conference_name || strcmp(x->conference_name, "Weekly Sync") != 0 ||
+        x->max_people_resolution.avc_width != 640 || x->max_content_resolution.avc_height != 720) {
+        agorahex_message_free(&m);
+        return fail("Agora dial-out request fields");
+    }
+    char *json = NULL;
+    size_t json_len = 0;
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK || !json || json_len == 0) {
+        agorahex_message_free(&m);
+        free(json);
+        return fail("marshal Agora dial-out request");
+    }
+    agorahex_message_free(&m);
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(json, json_len, &m) != AGORAHEX_OK ||
+        !m.u.agora_dial_out_request.to_gw_content.media_id ||
+        strcmp(m.u.agora_dial_out_request.to_gw_content.media_id, "c-to") != 0 ||
+        !m.u.agora_dial_out_request.conference_name ||
+        strcmp(m.u.agora_dial_out_request.conference_name, "Weekly Sync") != 0) {
+        free(json);
+        agorahex_message_free(&m);
+        return fail("roundtrip Agora dial-out request");
+    }
+    free(json);
+    agorahex_message_free(&m);
+    return 0;
+}
+
+static int test_agora_dial_out_reply_roundtrip(void) {
+    const char *raw =
+        "{\"AgoraDialOutReply\":{\"callId\":\"call-out-1\",\"returnCode\":0,\"avcEndpoint\":{"
+        "\"displayName\":\"Phone\",\"signalType\":\"SIP\",\"e164\":\"10026\"},"
+        "\"isAudioOnly\":true,\"peopleProperty\":{\"mediaId\":\"people\",\"bitrate\":4096,\"width\":1920,\"height\":1080,\"fps\":30},"
+        "\"contentProperty\":{\"mediaId\":\"content\",\"bitrate\":2048,\"width\":1920,\"height\":1080,\"fps\":15},"
+        "\"audioProperty\":{\"mediaId\":\"audio\",\"samplerate\":48000,\"channels\":1,\"bits\":16},"
+        "\"maxPeopleResolution\":{\"avcWidth\":640,\"avcHeight\":360},\"maxContentResolution\":{\"avcWidth\":1280,\"avcHeight\":720}}}";
+    agorahex_message_t m;
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK ||
+        m.kind != AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY) {
+        agorahex_message_free(&m);
+        return fail("parse Agora dial-out reply");
+    }
+    const agorahex_agora_dial_out_reply_t *x = &m.u.agora_dial_out_reply;
+    if (x->return_code != 0 || !x->is_audio_only || !x->avc_endpoint.display_name ||
+        strcmp(x->avc_endpoint.display_name, "Phone") != 0 || !x->audio_property.media_id ||
+        strcmp(x->audio_property.media_id, "audio") != 0 || x->max_content_resolution.avc_width != 1280) {
+        agorahex_message_free(&m);
+        return fail("Agora dial-out reply fields");
+    }
+    char *json = NULL;
+    size_t json_len = 0;
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK || !json || json_len == 0) {
+        agorahex_message_free(&m);
+        free(json);
+        return fail("marshal Agora dial-out reply");
+    }
+    agorahex_message_free(&m);
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(json, json_len, &m) != AGORAHEX_OK ||
+        !m.u.agora_dial_out_reply.content_property.media_id ||
+        strcmp(m.u.agora_dial_out_reply.content_property.media_id, "content") != 0 ||
+        m.u.agora_dial_out_reply.audio_property.sample_rate != 48000) {
+        free(json);
+        agorahex_message_free(&m);
+        return fail("roundtrip Agora dial-out reply");
+    }
+    free(json);
+    agorahex_message_free(&m);
+    return 0;
+}
+
 int main(void) {
     if (test_avc_display_name_empty_value() != 0 || test_avc_display_name_roundtrip() != 0 ||
         test_avc_user_agent_audio_roundtrip() != 0 ||
@@ -439,7 +532,8 @@ int main(void) {
         test_avc_partial_audio_and_content_properties_default() != 0 ||
         test_avc_audio_out_of_range_values_ignored() != 0 ||
         test_avc_new_json_fields_report_allocation_failure() != 0 || test_dtmf_indication_parse() != 0 ||
-        test_avc_dial_in_reply_max_resolution_roundtrip() != 0) {
+        test_avc_dial_in_reply_max_resolution_roundtrip() != 0 || test_agora_dial_out_request_roundtrip() != 0 ||
+        test_agora_dial_out_reply_roundtrip() != 0) {
         return 1;
     }
 

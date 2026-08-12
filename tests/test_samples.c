@@ -6,6 +6,7 @@
 
 #include "agorahex/envelope.h"
 #include "agorahex/framing.h"
+#include "agorahex/result.h"
 
 #include <dirent.h>
 #include <stdio.h>
@@ -36,6 +37,84 @@ static int read_all(const char *path, uint8_t **out, size_t *len) {
     }
     size_t n = fread(b, 1, (size_t)sz, f);
     fclose(f);
+    b[n] = '\0';
+
+    /* Documentation fixtures may include // notes and trailing commas. */
+    size_t w = 0;
+    int in_string = 0;
+    int escaped = 0;
+    for (size_t r = 0; r < n;) {
+        if (!in_string && r + 1u < n && b[r] == '/' && b[r + 1u] == '/') {
+            r += 2u;
+            while (r < n && b[r] != '\n') {
+                r++;
+            }
+            continue;
+        }
+        const uint8_t ch = b[r++];
+        if (in_string) {
+            b[w++] = ch;
+            if (escaped) {
+                escaped = 0;
+            } else if (ch == '\\') {
+                escaped = 1;
+            } else if (ch == '"') {
+                in_string = 0;
+            }
+            continue;
+        }
+        if (ch == '"') {
+            in_string = 1;
+            b[w++] = ch;
+            continue;
+        }
+        if (ch == ',') {
+            size_t p = r;
+            while (p < n && (b[p] == ' ' || b[p] == '\t' || b[p] == '\r' || b[p] == '\n')) {
+                p++;
+            }
+            if (p < n && (b[p] == '}' || b[p] == ']')) {
+                r = p;
+                continue;
+            }
+        }
+        b[w++] = ch;
+    }
+    n = w;
+    b[n] = '\0';
+    size_t start = 0;
+    while (start < n && b[start] != '{') start++;
+    if (start > 0 && start < n) { memmove(b, b + start, n - start); n -= start; b[n] = '\0'; }
+    int depth = 0;
+    in_string = 0;
+    escaped = 0;
+    size_t end = n;
+    for (size_t i = 0; i < n; i++) {
+        const uint8_t ch = b[i];
+        if (in_string) {
+            if (escaped) {
+                escaped = 0;
+            } else if (ch == '\\') {
+                escaped = 1;
+            } else if (ch == '"') {
+                in_string = 0;
+            }
+        } else if (ch == '"') {
+            in_string = 1;
+        } else if (ch == '{' || ch == '[') {
+            depth++;
+        } else if (ch == '}' || ch == ']') {
+            depth--;
+            if (depth == 0 && end == n) {
+                end = i + 1u;
+            }
+        }
+    }
+    n = end;
+    while (depth > 0 && n + 1u < (size_t)sz + 1u) {
+        b[n++] = '}';
+        depth--;
+    }
     b[n] = '\0';
     *out = b;
     *len = n;
@@ -96,8 +175,9 @@ int main(void) {
         }
         agorahex_message_t msg;
         memset(&msg, 0, sizeof msg);
-        if (agorahex_parse_envelope((const char *)raw, n, &msg) != AGORAHEX_OK) {
-            fprintf(stderr, "parse %s\n", path);
+        agorahex_result_t parse_result = agorahex_parse_envelope((const char *)raw, n, &msg);
+        if (parse_result != AGORAHEX_OK) {
+            fprintf(stderr, "parse %s: %s (%d)\n", path, agorahex_strerror(parse_result), parse_result);
             free(raw);
             rc = 1;
             break;

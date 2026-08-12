@@ -1,0 +1,75 @@
+
+{
+"AgoraDialOutRequest":
+{
+ "callId": "24123eed-e707-4f82-8451-cbdf993694f5",
+  "avcEndpoint": {
+   "displayName":"对sip or 323：是agora分配的名字；对volte：是手机号码，或者是分配的名字",
+   "signalType": "H323",
+   "encryption": true,
+   "e164": "对sip是短号，对volte是用户手机号码如138xxx",
+   "conferenceId": "对sip是接入的sip Gateway地址；对volte是运营商号码010888；如果为空，volte服务sbc会分配一个号码",
+   "url": "e164@conferenceId, 也就是标准的e164格式",
+   "userAgent": "sip：终端设备的型号，同sdp里面的user-agent, 如：Polycom RealPresence Group 500"
+  },
+  "callBitrate": 8192,
+  "isAudioOnly": false,
+  "toMcuAudioProperty": {
+   "mediaId": "/agsh_AudioToMcu_0018",
+   "muted": false
+  },
+  "fromMcuAudioProperty": {
+   "mediaId": "/agsh_AudioFromMcu_0418"
+  },
+  "toGWVideoProperty": {
+   "mediaId": "/agsh_VideoToMcu_0018",
+   "bitrate": 8192,
+   "width": 1280,
+   "height": 720,
+   "fps": 30
+  },
+  "fromGWVideoProperty": {
+   "mediaId": "/agsh_VideoFromMcu_0918",
+   "bitrate": 8192,
+   "width": 1280,
+   "height": 720,
+   "fps": 30
+  },
+  "toGWContentProperty": {
+   "mediaId": "/agsh_ContentToMcu_0218",
+   "bitrate": 3712,
+   "width": 1920,
+   "height": 1080,
+   "fps": 12
+  },
+  "fromGWContentProperty": {
+   "mediaId": "/agsh_ContentFromMcu_0618",
+   "bitrate": 4096,
+   "width": 1920,
+   "height": 1080,
+   "fps": 15
+  },
+
+  "maxPeopleResolution": {
+  "avcWidth": 640,
+  "avcHeight": 360
+ },
+ "maxContentResolution": {
+  "avcWidth": 1280,
+  "avcHeight": 720
+ },
+  "conferenceId": "agora的会议号：如01090001",
+  "conferenceName": "agora会议名称",
+ "password": "agora会议密码：如123456，请忽略不用处理，而且agora也不会填写",
+}
+}
+
+
+
+
+//说明：
+
+//1. 请求参数中，fromXXX，toXXX中，mediaId是必须的，其他参数是为了对齐结构，忽略不用处理
+//2. isAudioOnly：是邀请对方加入会议时，是否只邀请音频，如果为true，则只邀请音频，如果为false，则邀请音视频。但实际通话，以最终返回为准。如果是true，对方只能ture，不能false！
+//3. maxPeopleResolution：是期望对方用这个分辨率编码给终端，实际以返回的为准。
+//4. 只有callID, avcEndpoint.e164, avcEndpoint.signalType,avcEndpoint.conferenceId, avcEndpoint.isAudioOnly, conferenceId, from/toXX.mediaId 是必须的，其他的可以忽略
