@@ -1,0 +1,26 @@
+{
+	"AVCCapacityIndication": {
+		"maxCapacity": 10,
+		"curCapacity": 1,
+		"addr": "192.168.1.1",
+		"port": 8080,
+		"identifier": "avc-process-1"
+	}
+}
+
+date: 2026-08-17 14:23:46
+maxCapacity: 10
+curCapacity: 1
+addr: 192.168.1.1
+port: 8080
+fd: 1629206226
+是用来连接到sever端的当前ip和端口
+identifier:AVC服务的唯一标识符，确保在服务的生命周期内，该id在集群内是唯一的
+比如：有1个进程都连接到同一个server端，但是每个进程的identifier是不同的，这样server端才能区分不同的进程。但identifier不能重复，否则server端无法区分不同的进程。
+但identifier在进程重新启动的时候，可以更换为别的，只要确保在进程的生命周期内，该id在集群内是唯一的即可。
+
+汇报规则：
+强制：在在该进程有负载变化的时候，比如负载从1变到2，或者从2变到1的时候，主动汇报一次。
+建议：可以有定时机制，比如每隔1分钟汇报一次。确保数据的最终一致性。
+
+注意：服务端最好用fd来做映射，而不是用ip和port，因为ip和port可能会变，而fd不会变。
