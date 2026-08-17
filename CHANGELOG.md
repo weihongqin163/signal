@@ -2,13 +2,22 @@
 
 本文档记录仓库中值得追踪的版本变更，重点描述对使用者和维护者有意义的交付内容。
 
-## [Unreleased]
+## [1.0.7] - 2026-08-17
 
-- 暂无未发布记录。
+增加 AVC 容量上报协议和 signal server 客户端断开通知。
+
+### 变更
+
+- 新增 `AVCCapacityIndication` 协议及公开 C 数据结构，支持 `maxCapacity`、`curCapacity`、`identifier` 以及可选的 `addr`、`port` 字段。
+- 容量值仅校验为 C `int` 范围内的 JSON 整数，不执行默认容量约束；`identifier` 校验为 1 至 64 个 UTF-8 字节，容量和标识唯一性由业务侧管理。
+- signal server 收到容量上报后使用 `getpeername` 获取真实 TCP 客户端地址与端口，并覆盖回调消息结构体中的不可信上报值，同时保持原始 JSON 不变。
+- 为 `agorahex_signal_start` 增加可空的服务端断开回调参数，区分对端正常关闭、I/O 错误和协议错误；连接在回调前已关闭并移除，且每条连接最多通知一次。
+- 服务端发送失败会触发 I/O 断开通知；显式调用 `agorahex_signal_close`、客户端超限拒绝、监听 socket 错误和 client 模式断线不触发该回调。
+- 增加容量协议解析、序列化、真实对端覆盖和服务端断开原因的回归测试，并收录容量上报协议样例。
 
 ## [1.0.6] - 2026-08-17
 
-提升 signal server 的并发连接容量，修正 AVC 内容启动回复相关命名，并增加 AVC 容量上报与连接断开通知。
+提升 signal server 的并发连接容量，并修正 AVC 内容启动回复相关命名。
 
 ### 变更
 
@@ -17,12 +26,6 @@
 - 同步更新 AVC 内容启动回复的解析、序列化、资源释放、示例程序和回归测试中的字段引用。
 - 将协议样例中的消息名由 `AVCStartContentReplay` 修正为 `AVCStartContentReply`。
 - 将 TCP 回归测试的服务端地址调整为标准回环地址 `127.0.0.1`，提升测试在受管网络环境中的可移植性。
-- 新增 `AVCCapacityIndication` 协议及公开 C 数据结构，支持 `maxCapacity`、`curCapacity`、`identifier` 以及可选的 `addr`、`port` 字段。
-- 容量值仅校验为 C `int` 范围内的 JSON 整数，不执行默认容量约束；`identifier` 校验为 1 至 64 个 UTF-8 字节，容量和标识唯一性由业务侧管理。
-- signal server 收到容量上报后使用 `getpeername` 获取真实 TCP 客户端地址与端口，并覆盖回调消息结构体中的不可信上报值，同时保持原始 JSON 不变。
-- 为 `agorahex_signal_start` 增加可空的服务端断开回调参数，区分对端正常关闭、I/O 错误和协议错误；连接在回调前已关闭并移除，且每条连接最多通知一次。
-- 服务端发送失败会触发 I/O 断开通知；显式调用 `agorahex_signal_close`、客户端超限拒绝、监听 socket 错误和 client 模式断线不触发该回调。
-- 增加容量协议解析、序列化、真实对端覆盖和服务端断开原因的回归测试，并收录容量上报协议样例。
 
 ## [1.0.5] - 2026-08-12
 
