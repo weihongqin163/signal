@@ -31,6 +31,19 @@ extern "C" {
  */
 typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex_message_t *msg_t);
 
+typedef enum agorahex_signal_disconnect_reason {
+    AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED = 0,
+    AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR,
+    AGORAHEX_SIGNAL_DISCONNECT_PROTOCOL_ERROR,
+} agorahex_signal_disconnect_reason_t;
+
+/**
+ * Server-side notification that a registered client connection was closed and removed.
+ * fd is no longer a valid socket and is provided only as an application mapping key.
+ * The callback is invoked synchronously and may be NULL. Client mode ignores it.
+ */
+typedef void (*agorahex_signal_disconnect_cb_t)(int fd, agorahex_signal_disconnect_reason_t reason);
+
 /**
  * Starts the TCP signal runtime in client or server mode.
  * Usage:
@@ -44,6 +57,7 @@ typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex
  *                      validates it but listens on all local IPv4 interfaces.
  *   tcp_port         - server TCP port, valid range 1..65535.
  *   cb               - receive callback for decoded JSON messages.
+ *   disconnect_cb    - optional server-side callback for client disconnects; ignored in client mode.
  * Returns:
  *   AGORAHEX_OK on success.
  *   AGORAHEX_ERR_ALREADY_STARTED if the runtime is already active.
@@ -52,7 +66,8 @@ typedef void (*agorahex_signal_cb_t)(int fd, const void *json, int len, agorahex
  *   AGORAHEX_ERR_IO if server socket setup, bind, or listen fails.
  * Client connection failures are retried by agorahex_signal_poll().
  */
-int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb);
+int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb,
+                          agorahex_signal_disconnect_cb_t disconnect_cb);
 
 /**
  * Sends one JSON signal envelope over the active TCP signal runtime.

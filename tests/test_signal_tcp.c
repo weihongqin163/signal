@@ -26,6 +26,9 @@ static int g_server_received;
 static int g_server_reply_sent;
 static int g_server_peer_fd = AGORAHEX_SIGNAL_BROADCAST_FD;
 static int g_client_received;
+static int g_server_disconnected;
+static int g_server_disconnected_fd = AGORAHEX_SIGNAL_BROADCAST_FD;
+static agorahex_signal_disconnect_reason_t g_server_disconnect_reason;
 
 static long long now_ms(void) {
     struct timespec ts;
@@ -61,9 +64,16 @@ static void client_cb(int fd, const void *json, int len, agorahex_message_t *msg
     }
 }
 
+static void server_disconnect_cb(int fd, agorahex_signal_disconnect_reason_t reason) {
+    g_server_disconnected++;
+    g_server_disconnected_fd = fd;
+    g_server_disconnect_reason = reason;
+}
+
 static int run_server(int port) {
     long long deadline = now_ms() + 5000ll;
-    int rc = agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, g_server_ipv4_addr, port, server_cb);
+    int rc =
+        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, g_server_ipv4_addr, port, server_cb, server_disconnect_cb);
     if (rc != AGORAHEX_OK) {
         if (rc == AGORAHEX_ERR_IO) {
             fprintf(stderr, "skip: local tcp bind not permitted in this environment\n");
@@ -88,7 +98,12 @@ static int run_server(int port) {
             }
             g_server_reply_sent = 1;
         }
-        if (g_server_reply_sent) {
+        if (g_server_reply_sent && g_server_disconnected == 1) {
+            if (g_server_disconnected_fd != g_server_peer_fd ||
+                g_server_disconnect_reason != AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED) {
+                agorahex_signal_close();
+                return 1;
+            }
             agorahex_signal_close();
             return 0;
         }
@@ -103,10 +118,14 @@ int main(void) {
     int status = 0;
     char malformed_ipv4_addr[] = "not-an-ipv4-address";
 
-    if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, NULL, port, client_cb) != AGORAHEX_ERR_INVALID_ARG ||
-        agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, malformed_ipv4_addr, port, client_cb) != AGORAHEX_ERR_INVALID_ARG ||
-        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, NULL, port, server_cb) != AGORAHEX_ERR_INVALID_ARG ||
-        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, malformed_ipv4_addr, port, server_cb) != AGORAHEX_ERR_INVALID_ARG) {
+    if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, NULL, port, client_cb, NULL) !=
+            AGORAHEX_ERR_INVALID_ARG ||
+        agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, malformed_ipv4_addr, port, client_cb, NULL) !=
+            AGORAHEX_ERR_INVALID_ARG ||
+        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, NULL, port, server_cb, server_disconnect_cb) !=
+            AGORAHEX_ERR_INVALID_ARG ||
+        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, malformed_ipv4_addr, port, server_cb,
+                              server_disconnect_cb) != AGORAHEX_ERR_INVALID_ARG) {
         fprintf(stderr, "invalid server IPv4 address was accepted\n");
         return 1;
     }
@@ -127,7 +146,7 @@ int main(void) {
         }
         return 1;
     }
-    if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, g_server_ipv4_addr, port, client_cb) != AGORAHEX_OK) {
+    if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, g_server_ipv4_addr, port, client_cb, NULL) != AGORAHEX_OK) {
         fprintf(stderr, "client: start failed\n");
         kill(pid, SIGKILL);
         waitpid(pid, NULL, 0);

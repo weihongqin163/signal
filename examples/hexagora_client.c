@@ -207,7 +207,7 @@ int main(int argc, char **argv) {
     sigemptyset(&sa.sa_mask);
     (void)sigaction(SIGINT, &sa, NULL);
 
-    rc = agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, server_ipv4_addr, port, client_cb);
+    rc = agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, server_ipv4_addr, port, client_cb, NULL);
     if (rc != AGORAHEX_OK) {
         fprintf(stderr, "agorahex_signal_start err=%d (%s)\n", rc, agorahex_strerror((agorahex_result_t)rc));
         free(payload);
