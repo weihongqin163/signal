@@ -24,7 +24,8 @@ TEST_SRCS := \
 	tests/test_framing.c \
 	tests/test_envelope.c \
 	tests/test_samples.c \
-	tests/test_signal_tcp.c
+	tests/test_signal_tcp.c \
+	tests/test_signal_disconnect.c
 
 LIB_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(LIB_SRCS))
 
@@ -32,6 +33,7 @@ LIB := $(BUILD_DIR)/libagorahex.a
 EXAMPLES := $(BUILD_DIR)/hexagora-server $(BUILD_DIR)/hexagora-client
 TEST_BINS := $(BUILD_DIR)/test_framing $(BUILD_DIR)/test_envelope $(BUILD_DIR)/test_samples
 TEST_BINS += $(BUILD_DIR)/test_signal_tcp
+TEST_BINS += $(BUILD_DIR)/test_signal_disconnect
 
 .PHONY: all clean test
 
@@ -63,11 +65,15 @@ $(BUILD_DIR)/test_samples: $(OBJ_DIR)/tests/test_samples.o $(LIB)
 $(BUILD_DIR)/test_signal_tcp: $(OBJ_DIR)/tests/test_signal_tcp.o $(LIB)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+$(BUILD_DIR)/test_signal_disconnect: $(OBJ_DIR)/tests/test_signal_disconnect.o $(LIB)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
 test: $(TEST_BINS)
 	$(BUILD_DIR)/test_framing
 	$(BUILD_DIR)/test_envelope
 	cd "$(ROOT)/docs" && ../build/test_samples
 	$(BUILD_DIR)/test_signal_tcp
+	$(BUILD_DIR)/test_signal_disconnect
 
 clean:
 	rm -rf $(BUILD_DIR)

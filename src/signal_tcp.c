@@ -82,7 +82,7 @@ static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_sig
 static void close_server_mode(void);
 static void close_client_mode(void);
 static int validate_signal_payload(const void *json, int len);
-static int write_all_or_close(agorahex_signal_conn_t *conn, const uint8_t *buf, size_t len);
+static int write_all(agorahex_signal_conn_t *conn, const uint8_t *buf, size_t len);
 static int server_send_one(int fd, const uint8_t *frame, size_t frame_len);
 static int server_send_all(const uint8_t *frame, size_t frame_len);
 static int handle_server_poll(int timeout_ms);
@@ -288,7 +288,7 @@ int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port,
     return start_client(server_ipv4_addr, tcp_port, cb);
 }
 
-static int write_all_or_close(agorahex_signal_conn_t *conn, const uint8_t *buf, size_t len) {
+static int write_all(agorahex_signal_conn_t *conn, const uint8_t *buf, size_t len) {
     size_t off = 0;
     while (off < len) {
 #ifdef MSG_NOSIGNAL
@@ -303,7 +303,6 @@ static int write_all_or_close(agorahex_signal_conn_t *conn, const uint8_t *buf, 
         if (n < 0 && errno == EINTR) {
             continue;
         }
-        conn_reset(conn);
         return AGORAHEX_ERR_IO;
     }
     return AGORAHEX_OK;
@@ -325,10 +324,8 @@ static int server_send_one(int fd, const uint8_t *frame, size_t frame_len) {
     if (!conn) {
         return AGORAHEX_ERR_NOT_FOUND;
     }
-    if (write_all_or_close(conn, frame, frame_len) != AGORAHEX_OK) {
-        if (g_runtime.server.client_count > 0) {
-            g_runtime.server.client_count--;
-        }
+    if (write_all(conn, frame, frame_len) != AGORAHEX_OK) {
+        server_disconnect_client(conn, AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR);
         return AGORAHEX_ERR_IO;
     }
     return AGORAHEX_OK;
@@ -344,14 +341,12 @@ static int server_send_all(const uint8_t *frame, size_t frame_len) {
         if (conn->fd < 0 || conn->state != AGORAHEX_SIGNAL_CONN_CONNECTED) {
             continue;
         }
-        send_rc = write_all_or_close(conn, frame, frame_len);
+        send_rc = write_all(conn, frame, frame_len);
         if (send_rc == AGORAHEX_OK) {
             rc = AGORAHEX_OK;
             continue;
         }
-        if (g_runtime.server.client_count > 0) {
-            g_runtime.server.client_count--;
-        }
+        server_disconnect_client(conn, AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR);
         if (rc == AGORAHEX_ERR_NOT_FOUND) {
             rc = send_rc;
         }
@@ -387,8 +382,10 @@ int agorahex_signal_send(int fd, const void *json, int len) {
             free(frame);
             return AGORAHEX_ERR_NOT_CONNECTED;
         }
-        rc = write_all_or_close(&g_runtime.client.conn, frame, frame_len);
+        rc = write_all(&g_runtime.client.conn, frame, frame_len);
         if (rc != AGORAHEX_OK) {
+            conn_reset(&g_runtime.client.conn);
+            free(frame);
             return rc;
         }
     }
