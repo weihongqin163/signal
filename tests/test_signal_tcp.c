@@ -20,7 +20,7 @@
 
 static const char g_ping[] = "{\"HangupIndication\":{\"callId\":\"00000000-0000-0000-0000-000000000001\",\"dropCode\":0}}";
 static const char g_pong[] = "{\"MutedIndication\":{\"callId\":\"00000000-0000-0000-0000-000000000001\",\"muted\":true}}";
-static char g_server_ipv4_addr[] = "127.0.0.2";
+static char g_server_ipv4_addr[] = "127.0.0.1";
 
 static int g_server_received;
 static int g_server_reply_sent;

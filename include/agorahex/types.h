@@ -163,10 +163,10 @@ typedef struct agorahex_avc_start_content_request {
     char *call_id;
 } agorahex_avc_start_content_request_t;
 
-typedef struct agorahex_avc_start_content_replay {
+typedef struct agorahex_avc_start_content_reply {
     char *call_id;
     bool accept;
-} agorahex_avc_start_content_replay_t;
+} agorahex_avc_start_content_reply_t;
 
 typedef struct agorahex_stop_content_indication {
     char *call_id;

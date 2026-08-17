@@ -155,9 +155,9 @@ void agorahex_message_free(agorahex_message_t *m) {
         free(m->u.avc_start_content_request.call_id);
         memset(&m->u.avc_start_content_request, 0, sizeof(m->u.avc_start_content_request));
         break;
-    case AGORAHEX_KIND_AVC_START_CONTENT_REPLAY:
-        free(m->u.avc_start_content_replay.call_id);
-        memset(&m->u.avc_start_content_replay, 0, sizeof(m->u.avc_start_content_replay));
+    case AGORAHEX_KIND_AVC_START_CONTENT_REPLY:
+        free(m->u.avc_start_content_reply.call_id);
+        memset(&m->u.avc_start_content_reply, 0, sizeof(m->u.avc_start_content_reply));
         break;
     case AGORAHEX_KIND_STOP_CONTENT_INDICATION:
         free(m->u.stop_content_indication.call_id);
@@ -196,8 +196,8 @@ const char *agorahex_kind_cstr(agorahex_kind_t k) {
         return "AgoraStartContentIndication";
     case AGORAHEX_KIND_AVC_START_CONTENT_REQUEST:
         return "AVCStartContentRequest";
-    case AGORAHEX_KIND_AVC_START_CONTENT_REPLAY:
-        return "AVCStartContentReplay";
+    case AGORAHEX_KIND_AVC_START_CONTENT_REPLY:
+        return "AVCStartContentReply";
     case AGORAHEX_KIND_STOP_CONTENT_INDICATION:
         return "StopContentIndication";
     case AGORAHEX_KIND_DTMF_INDICATION:
@@ -241,8 +241,8 @@ static agorahex_kind_t kind_from_cstr(const char *k) {
     if (strcmp(k, "AVCStartContentRequest") == 0) {
         return AGORAHEX_KIND_AVC_START_CONTENT_REQUEST;
     }
-    if (strcmp(k, "AVCStartContentReplay") == 0) {
-        return AGORAHEX_KIND_AVC_START_CONTENT_REPLAY;
+    if (strcmp(k, "AVCStartContentReply") == 0) {
+        return AGORAHEX_KIND_AVC_START_CONTENT_REPLY;
     }
     if (strcmp(k, "StopContentIndication") == 0) {
         return AGORAHEX_KIND_STOP_CONTENT_INDICATION;
@@ -691,8 +691,8 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
         }
         return AGORAHEX_OK;
     }
-    case AGORAHEX_KIND_AVC_START_CONTENT_REPLAY: {
-        agorahex_avc_start_content_replay_t *x = &out->u.avc_start_content_replay;
+    case AGORAHEX_KIND_AVC_START_CONTENT_REPLY: {
+        agorahex_avc_start_content_reply_t *x = &out->u.avc_start_content_reply;
         const cJSON *it = cJSON_GetObjectItemCaseSensitive(body, "callId");
         if (cJSON_IsString(it)) {
             x->call_id = dup_or_null(cJSON_GetStringValue(it));
@@ -1222,8 +1222,8 @@ agorahex_result_t agorahex_marshal_envelope(const agorahex_message_t *msg, char 
         }
         break;
     }
-    case AGORAHEX_KIND_AVC_START_CONTENT_REPLAY: {
-        const agorahex_avc_start_content_replay_t *x = &msg->u.avc_start_content_replay;
+    case AGORAHEX_KIND_AVC_START_CONTENT_REPLY: {
+        const agorahex_avc_start_content_reply_t *x = &msg->u.avc_start_content_reply;
         body = cJSON_CreateObject();
         if (!body) {
             break;

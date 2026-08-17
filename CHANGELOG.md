@@ -6,6 +6,18 @@
 
 - 暂无未发布记录。
 
+## [1.0.6] - 2026-08-17
+
+提升 signal server 的并发连接容量，并修正 AVC 内容启动回复相关命名。
+
+### 变更
+
+- 将 `AGORAHEX_SIGNAL_MAX_CLIENTS` 从 8 提升至 128，扩大 signal server 可同时维护的客户端连接数量及监听队列容量。
+- 将 AVC 内容启动回复的公开 C 类型由 `agorahex_avc_start_content_replay_t` 更正为 `agorahex_avc_start_content_reply_t`，枚举常量更正为 `AGORAHEX_KIND_AVC_START_CONTENT_REPLY`，并同步将消息联合体成员更名为 `avc_start_content_reply`。
+- 同步更新 AVC 内容启动回复的解析、序列化、资源释放、示例程序和回归测试中的字段引用。
+- 将协议样例中的消息名由 `AVCStartContentReplay` 修正为 `AVCStartContentReply`。
+- 将 TCP 回归测试的服务端地址调整为标准回环地址 `127.0.0.1`，提升测试在受管网络环境中的可移植性。
+
 ## [1.0.5] - 2026-08-12
 
 增加 Agora Dial-Out JSON 协议支持。

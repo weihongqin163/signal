@@ -25,7 +25,7 @@ typedef enum agorahex_kind {
     AGORAHEX_KIND_AVC_NAME_CHANGED_INDICATION,
     AGORAHEX_KIND_AGORA_START_CONTENT_INDICATION,
     AGORAHEX_KIND_AVC_START_CONTENT_REQUEST,
-    AGORAHEX_KIND_AVC_START_CONTENT_REPLAY,
+    AGORAHEX_KIND_AVC_START_CONTENT_REPLY,
     AGORAHEX_KIND_STOP_CONTENT_INDICATION,
     AGORAHEX_KIND_DTMF_INDICATION,
     AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST,
@@ -45,7 +45,7 @@ typedef struct agorahex_message {
         agorahex_avc_name_changed_indication_t avc_name_changed_indication;
         agorahex_agora_start_content_indication_t agora_start_content_indication;
         agorahex_avc_start_content_request_t avc_start_content_request;
-        agorahex_avc_start_content_replay_t avc_start_content_replay;
+        agorahex_avc_start_content_reply_t avc_start_content_reply;
         agorahex_stop_content_indication_t stop_content_indication;
         agorahex_dtmf_indication_t dtmf_indication;
     } u;

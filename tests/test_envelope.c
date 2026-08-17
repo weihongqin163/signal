@@ -563,31 +563,47 @@ int main(void) {
         return fail("two keys");
     }
 
+    const char *content_reply = "{\"AVCStartContentReply\":{\"callId\":\"abc\",\"accept\":true}}";
+    if (agorahex_parse_envelope(content_reply, strlen(content_reply), &m) != AGORAHEX_OK) {
+        return fail("parse content reply");
+    }
+    if (m.kind != AGORAHEX_KIND_AVC_START_CONTENT_REPLY ||
+        !m.u.avc_start_content_reply.call_id || strcmp(m.u.avc_start_content_reply.call_id, "abc") != 0 ||
+        !m.u.avc_start_content_reply.accept) {
+        agorahex_message_free(&m);
+        return fail("content reply fields");
+    }
+    agorahex_message_free(&m);
+
     agorahex_message_t out;
     memset(&out, 0, sizeof out);
-    out.kind = AGORAHEX_KIND_AVC_START_CONTENT_REPLAY;
-    out.u.avc_start_content_replay.call_id = agorahex_strdup("abc");
-    out.u.avc_start_content_replay.accept = true;
+    out.kind = AGORAHEX_KIND_AVC_START_CONTENT_REPLY;
+    out.u.avc_start_content_reply.call_id = agorahex_strdup("abc");
+    out.u.avc_start_content_reply.accept = true;
     char *json = NULL;
     size_t jl = 0;
     if (agorahex_marshal_envelope(&out, &json, &jl) != AGORAHEX_OK) {
-        free(out.u.avc_start_content_replay.call_id);
+        free(out.u.avc_start_content_reply.call_id);
         return fail("marshal");
     }
-    free(out.u.avc_start_content_replay.call_id);
+    free(out.u.avc_start_content_reply.call_id);
     memset(&out, 0, sizeof out);
+    if (!strstr(json, "\"AVCStartContentReply\"")) {
+        free(json);
+        return fail("marshal content reply name");
+    }
 
     if (agorahex_parse_envelope(json, jl, &out) != AGORAHEX_OK) {
         free(json);
         return fail("parse marshaled");
     }
     free(json);
-    if (out.kind != AGORAHEX_KIND_AVC_START_CONTENT_REPLAY) {
+    if (out.kind != AGORAHEX_KIND_AVC_START_CONTENT_REPLY) {
         agorahex_message_free(&out);
         return fail("roundtrip kind");
     }
-    if (!out.u.avc_start_content_replay.call_id || strcmp(out.u.avc_start_content_replay.call_id, "abc") != 0 ||
-        !out.u.avc_start_content_replay.accept) {
+    if (!out.u.avc_start_content_reply.call_id || strcmp(out.u.avc_start_content_reply.call_id, "abc") != 0 ||
+        !out.u.avc_start_content_reply.accept) {
         agorahex_message_free(&out);
         return fail("roundtrip fields");
     }

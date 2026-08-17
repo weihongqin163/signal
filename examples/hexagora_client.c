@@ -47,8 +47,8 @@ static const char *extract_call_id(const agorahex_message_t *m) {
         return m->u.agora_start_content_indication.call_id;
     case AGORAHEX_KIND_AVC_START_CONTENT_REQUEST:
         return m->u.avc_start_content_request.call_id;
-    case AGORAHEX_KIND_AVC_START_CONTENT_REPLAY:
-        return m->u.avc_start_content_replay.call_id;
+    case AGORAHEX_KIND_AVC_START_CONTENT_REPLY:
+        return m->u.avc_start_content_reply.call_id;
     case AGORAHEX_KIND_STOP_CONTENT_INDICATION:
         return m->u.stop_content_indication.call_id;
     default:
