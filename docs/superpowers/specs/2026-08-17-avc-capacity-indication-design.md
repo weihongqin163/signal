@@ -83,6 +83,52 @@ If `getpeername()`, IPv4 conversion, or address allocation fails, the library do
 
 The transport remains IPv4-only, matching the current `signal_tcp` implementation.
 
+## Server Disconnect Callback
+
+Add a server-side disconnect notification to the existing signal API:
+
+```c
+typedef enum agorahex_signal_disconnect_reason {
+    AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED = 0,
+    AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR,
+    AGORAHEX_SIGNAL_DISCONNECT_PROTOCOL_ERROR,
+} agorahex_signal_disconnect_reason_t;
+
+typedef void (*agorahex_signal_disconnect_cb_t)(
+    int fd,
+    agorahex_signal_disconnect_reason_t reason);
+```
+
+Change the existing start function signature directly:
+
+```c
+int agorahex_signal_start(
+    int server_mode,
+    char *server_ipv4_addr,
+    int tcp_port,
+    agorahex_signal_cb_t message_cb,
+    agorahex_signal_disconnect_cb_t disconnect_cb);
+```
+
+This is an intentional source-incompatible API change. All repository call sites and examples must pass the additional argument. `disconnect_cb` may be `NULL`, and client mode ignores it.
+
+The server closes and removes the connection before invoking the callback synchronously. The callback receives the former numeric `fd` only as an application mapping key; it must not perform socket operations on it. Connection state and `client_count` are updated before callback invocation so callback code observes the connection as already removed. Each registered client connection produces at most one disconnect notification.
+
+Reasons are assigned as follows:
+
+- `AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED` when `recv()` returns zero for an orderly peer shutdown.
+- `AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR` for client socket receive, send, or poll failures, and for failure to obtain or allocate the trusted peer endpoint for a capacity indication.
+- `AGORAHEX_SIGNAL_DISCONNECT_PROTOCOL_ERROR` for framing errors, invalid JSON, unknown message kinds, and known messages with invalid required fields.
+
+The send-one and broadcast-send paths invoke the disconnect callback immediately for each registered client they close after a send failure.
+
+The callback is not invoked for:
+
+- Explicit `agorahex_signal_close()` calls.
+- Connections accepted and immediately rejected because `AGORAHEX_SIGNAL_MAX_CLIENTS` has been reached.
+- Established clients closed as a side effect of a listening socket failure that shuts down the server runtime.
+- Client-mode connection loss.
+
 ## Responsibilities Outside The Library
 
 The AVC application decides when to send the indication. Load-change reporting and periodic reporting are not implemented by this library.
@@ -104,10 +150,19 @@ Envelope tests cover:
 
 The TCP integration test sends an indication containing a deliberately false address and port. The server callback verifies that the parsed message contains the actual loopback peer address and a real peer port, while the raw callback JSON still contains the original values.
 
+Disconnect callback tests cover:
+
+- An orderly client close reports `PEER_CLOSED` after the socket is removed.
+- A malformed frame or message reports `PROTOCOL_ERROR`.
+- A send-path client failure reports `IO_ERROR`.
+- Each connection reports at most one disconnect event.
+- A `NULL` disconnect callback is accepted.
+- Explicit server shutdown does not produce disconnect events.
+
 `docs/json_msg/AVCCapacityIndication.txt` becomes a tracked sample and is parsed by the existing sample regression test.
 
 ## Documentation And Release Notes
 
 Add an entry under `CHANGELOG.md`'s `Unreleased` section describing the new protocol message, its required fields, and server-side peer endpoint replacement.
 
-No new public transport API, automatic reporting scheduler, capacity registry, or identifier uniqueness mechanism is added.
+No automatic reporting scheduler, capacity registry, or identifier uniqueness mechanism is added.
