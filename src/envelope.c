@@ -18,6 +18,26 @@ static char *dup_or_null(const char *s) {
     }
     return agorahex_strdup(s);
 }
+
+static int parse_json_int(const cJSON *item, int *out) {
+    double value;
+    int parsed;
+
+    if (!cJSON_IsNumber(item) || !out) {
+        return 0;
+    }
+    value = cJSON_GetNumberValue(item);
+    if (value < (double)INT_MIN || value > (double)INT_MAX) {
+        return 0;
+    }
+    parsed = (int)value;
+    if (value != (double)parsed) {
+        return 0;
+    }
+    *out = parsed;
+    return 1;
+}
+
 char *agorahex_strdup(const char *s) {
     if (!s) {
         return NULL;
@@ -168,6 +188,11 @@ void agorahex_message_free(agorahex_message_t *m) {
         free(m->u.dtmf_indication.event);
         memset(&m->u.dtmf_indication, 0, sizeof(m->u.dtmf_indication));
         break;
+    case AGORAHEX_KIND_AVC_CAPACITY_INDICATION:
+        free(m->u.avc_capacity_indication.addr);
+        free(m->u.avc_capacity_indication.identifier);
+        memset(&m->u.avc_capacity_indication, 0, sizeof(m->u.avc_capacity_indication));
+        break;
     default:
         break;
     }
@@ -202,6 +227,8 @@ const char *agorahex_kind_cstr(agorahex_kind_t k) {
         return "StopContentIndication";
     case AGORAHEX_KIND_DTMF_INDICATION:
         return "DTMFIndication";
+    case AGORAHEX_KIND_AVC_CAPACITY_INDICATION:
+        return "AVCCapacityIndication";
     default:
         return "";
     }
@@ -249,6 +276,9 @@ static agorahex_kind_t kind_from_cstr(const char *k) {
     }
     if (strcmp(k, "DTMFIndication") == 0) {
         return AGORAHEX_KIND_DTMF_INDICATION;
+    }
+    if (strcmp(k, "AVCCapacityIndication") == 0) {
+        return AGORAHEX_KIND_AVC_CAPACITY_INDICATION;
     }
     return (agorahex_kind_t)-1;
 }
@@ -721,6 +751,38 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
         if (cJSON_IsString(it)) {
             x->event = dup_or_null(cJSON_GetStringValue(it));
         }
+        return AGORAHEX_OK;
+    }
+    case AGORAHEX_KIND_AVC_CAPACITY_INDICATION: {
+        agorahex_avc_capacity_indication_t *x = &out->u.avc_capacity_indication;
+        const cJSON *max_capacity = cJSON_GetObjectItemCaseSensitive(body, "maxCapacity");
+        const cJSON *cur_capacity = cJSON_GetObjectItemCaseSensitive(body, "curCapacity");
+        const cJSON *identifier = cJSON_GetObjectItemCaseSensitive(body, "identifier");
+        const cJSON *addr = cJSON_GetObjectItemCaseSensitive(body, "addr");
+        const cJSON *port = cJSON_GetObjectItemCaseSensitive(body, "port");
+        const char *identifier_value;
+        size_t identifier_len;
+
+        if (!parse_json_int(max_capacity, &x->max_capacity) ||
+            !parse_json_int(cur_capacity, &x->cur_capacity) || !cJSON_IsString(identifier)) {
+            return AGORAHEX_ERR_JSON_PARSE;
+        }
+        identifier_value = cJSON_GetStringValue(identifier);
+        identifier_len = identifier_value ? strlen(identifier_value) : 0u;
+        if (identifier_len == 0u || identifier_len > 64u) {
+            return AGORAHEX_ERR_JSON_PARSE;
+        }
+        x->identifier = dup_or_null(identifier_value);
+        if (!x->identifier) {
+            return AGORAHEX_ERR_NO_MEMORY;
+        }
+        if (cJSON_IsString(addr)) {
+            x->addr = dup_or_null(cJSON_GetStringValue(addr));
+            if (!x->addr) {
+                return AGORAHEX_ERR_NO_MEMORY;
+            }
+        }
+        (void)parse_json_int(port, &x->port);
         return AGORAHEX_OK;
     }
     default:
@@ -1242,6 +1304,33 @@ agorahex_result_t agorahex_marshal_envelope(const agorahex_message_t *msg, char 
         }
         if (x->call_id) {
             cJSON_AddStringToObject(body, "callId", x->call_id);
+        }
+        break;
+    }
+    case AGORAHEX_KIND_AVC_CAPACITY_INDICATION: {
+        const agorahex_avc_capacity_indication_t *x = &msg->u.avc_capacity_indication;
+        size_t identifier_len = x->identifier ? strlen(x->identifier) : 0u;
+
+        if (identifier_len == 0u || identifier_len > 64u) {
+            cJSON_Delete(root);
+            return AGORAHEX_ERR_INVALID_ARG;
+        }
+        body = cJSON_CreateObject();
+        if (!body || !cJSON_AddNumberToObject(body, "maxCapacity", (double)x->max_capacity) ||
+            !cJSON_AddNumberToObject(body, "curCapacity", (double)x->cur_capacity) ||
+            !cJSON_AddStringToObject(body, "identifier", x->identifier)) {
+            cJSON_Delete(body);
+            body = NULL;
+            break;
+        }
+        if (x->addr && !cJSON_AddStringToObject(body, "addr", x->addr)) {
+            cJSON_Delete(body);
+            body = NULL;
+            break;
+        }
+        if (x->port != 0 && !cJSON_AddNumberToObject(body, "port", (double)x->port)) {
+            cJSON_Delete(body);
+            body = NULL;
         }
         break;
     }

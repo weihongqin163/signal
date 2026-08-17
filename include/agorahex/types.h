@@ -177,6 +177,14 @@ typedef struct agorahex_dtmf_indication {
     char *event;
 } agorahex_dtmf_indication_t;
 
+typedef struct agorahex_avc_capacity_indication {
+    int max_capacity;
+    int cur_capacity;
+    char *addr;
+    int port;
+    char *identifier;
+} agorahex_avc_capacity_indication_t;
+
 #ifdef __cplusplus
 }
 #endif

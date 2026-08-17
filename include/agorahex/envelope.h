@@ -30,6 +30,7 @@ typedef enum agorahex_kind {
     AGORAHEX_KIND_DTMF_INDICATION,
     AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST,
     AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY,
+    AGORAHEX_KIND_AVC_CAPACITY_INDICATION,
 } agorahex_kind_t;
 
 typedef struct agorahex_message {
@@ -48,6 +49,7 @@ typedef struct agorahex_message {
         agorahex_avc_start_content_reply_t avc_start_content_reply;
         agorahex_stop_content_indication_t stop_content_indication;
         agorahex_dtmf_indication_t dtmf_indication;
+        agorahex_avc_capacity_indication_t avc_capacity_indication;
     } u;
 } agorahex_message_t;
 

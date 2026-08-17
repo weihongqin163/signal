@@ -525,6 +525,109 @@ static int test_agora_dial_out_reply_roundtrip(void) {
     return 0;
 }
 
+static int test_avc_capacity_indication(void) {
+    const char *complete =
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"curCapacity\":1,"
+        "\"addr\":\"192.0.2.10\",\"port\":8080,\"identifier\":\"avc-process-1\"}}";
+    agorahex_message_t m;
+    char *json = NULL;
+    size_t json_len = 0;
+
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(complete, strlen(complete), &m) != AGORAHEX_OK ||
+        m.kind != AGORAHEX_KIND_AVC_CAPACITY_INDICATION ||
+        m.u.avc_capacity_indication.max_capacity != 10 ||
+        m.u.avc_capacity_indication.cur_capacity != 1 || !m.u.avc_capacity_indication.addr ||
+        strcmp(m.u.avc_capacity_indication.addr, "192.0.2.10") != 0 ||
+        m.u.avc_capacity_indication.port != 8080 || !m.u.avc_capacity_indication.identifier ||
+        strcmp(m.u.avc_capacity_indication.identifier, "avc-process-1") != 0) {
+        agorahex_message_free(&m);
+        return fail("parse AVC capacity indication");
+    }
+    if (strcmp(agorahex_kind_cstr(m.kind), "AVCCapacityIndication") != 0 ||
+        agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK || !json) {
+        agorahex_message_free(&m);
+        free(json);
+        return fail("marshal AVC capacity indication");
+    }
+    agorahex_message_free(&m);
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(json, json_len, &m) != AGORAHEX_OK ||
+        m.u.avc_capacity_indication.max_capacity != 10 ||
+        m.u.avc_capacity_indication.cur_capacity != 1) {
+        free(json);
+        agorahex_message_free(&m);
+        return fail("roundtrip AVC capacity indication");
+    }
+    free(json);
+    agorahex_message_free(&m);
+
+    const char *minimal =
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":-1,\"curCapacity\":20,"
+        "\"identifier\":\"avc-2\"}}";
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(minimal, strlen(minimal), &m) != AGORAHEX_OK ||
+        m.u.avc_capacity_indication.max_capacity != -1 ||
+        m.u.avc_capacity_indication.cur_capacity != 20 || m.u.avc_capacity_indication.addr != NULL ||
+        m.u.avc_capacity_indication.port != 0) {
+        agorahex_message_free(&m);
+        return fail("minimal AVC capacity indication");
+    }
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK || strstr(json, "\"addr\"") ||
+        strstr(json, "\"port\"")) {
+        agorahex_message_free(&m);
+        free(json);
+        return fail("omit missing AVC capacity endpoint");
+    }
+    agorahex_message_free(&m);
+    free(json);
+
+    const char *ignored_optional =
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":3,\"curCapacity\":2,"
+        "\"addr\":42,\"port\":1.5,\"identifier\":\"avc-3\"}}";
+    memset(&m, 0, sizeof m);
+    if (agorahex_parse_envelope(ignored_optional, strlen(ignored_optional), &m) != AGORAHEX_OK ||
+        m.u.avc_capacity_indication.addr != NULL || m.u.avc_capacity_indication.port != 0) {
+        agorahex_message_free(&m);
+        return fail("ignore invalid optional AVC capacity endpoint");
+    }
+    agorahex_message_free(&m);
+
+    memset(&m, 0, sizeof m);
+    m.kind = AGORAHEX_KIND_AVC_CAPACITY_INDICATION;
+    m.u.avc_capacity_indication.identifier = "";
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_ERR_INVALID_ARG) {
+        free(json);
+        return fail("marshal invalid AVC capacity identifier");
+    }
+    return 0;
+}
+
+static int test_avc_capacity_required_field_validation(void) {
+    static const char *invalid[] = {
+        "{\"AVCCapacityIndication\":{\"curCapacity\":1,\"identifier\":\"avc\"}}",
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"identifier\":\"avc\"}}",
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":1.5,\"curCapacity\":1,\"identifier\":\"avc\"}}",
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"curCapacity\":2147483648,"
+        "\"identifier\":\"avc\"}}",
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"curCapacity\":1}}",
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"curCapacity\":1,\"identifier\":\"\"}}",
+        "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"curCapacity\":1,"
+        "\"identifier\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+    };
+    agorahex_message_t m;
+    size_t i;
+
+    for (i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        memset(&m, 0, sizeof m);
+        if (agorahex_parse_envelope(invalid[i], strlen(invalid[i]), &m) != AGORAHEX_ERR_JSON_PARSE) {
+            agorahex_message_free(&m);
+            return fail("accept invalid AVC capacity indication");
+        }
+    }
+    return 0;
+}
+
 int main(void) {
     if (test_avc_display_name_empty_value() != 0 || test_avc_display_name_roundtrip() != 0 ||
         test_avc_user_agent_audio_roundtrip() != 0 ||
@@ -533,7 +636,8 @@ int main(void) {
         test_avc_audio_out_of_range_values_ignored() != 0 ||
         test_avc_new_json_fields_report_allocation_failure() != 0 || test_dtmf_indication_parse() != 0 ||
         test_avc_dial_in_reply_max_resolution_roundtrip() != 0 || test_agora_dial_out_request_roundtrip() != 0 ||
-        test_agora_dial_out_reply_roundtrip() != 0) {
+        test_agora_dial_out_reply_roundtrip() != 0 || test_avc_capacity_indication() != 0 ||
+        test_avc_capacity_required_field_validation() != 0) {
         return 1;
     }
 
