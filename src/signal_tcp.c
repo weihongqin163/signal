@@ -94,6 +94,7 @@ static int find_free_client_slot(const agorahex_signal_server_t *server);
 static agorahex_signal_conn_t *find_server_client_by_fd(int fd);
 static int client_begin_connect(agorahex_signal_client_t *client);
 static int check_connect_complete(int fd);
+static agorahex_result_t enrich_capacity_peer(int fd, agorahex_message_t *msg);
 static agorahex_result_t on_signal_frame(void *ctx, const uint8_t *json, size_t json_len);
 
 static void ensure_runtime_initialized(void) {
@@ -435,6 +436,27 @@ static int accept_new_clients(agorahex_signal_server_t *server) {
     }
 }
 
+static agorahex_result_t enrich_capacity_peer(int fd, agorahex_message_t *msg) {
+    struct sockaddr_in peer;
+    socklen_t peer_len = (socklen_t)sizeof peer;
+    char addr[INET_ADDRSTRLEN];
+    char *addr_copy;
+
+    memset(&peer, 0, sizeof peer);
+    if (getpeername(fd, (struct sockaddr *)&peer, &peer_len) != 0 || peer.sin_family != AF_INET ||
+        !inet_ntop(AF_INET, &peer.sin_addr, addr, sizeof addr)) {
+        return AGORAHEX_ERR_IO;
+    }
+    addr_copy = strdup(addr);
+    if (!addr_copy) {
+        return AGORAHEX_ERR_NO_MEMORY;
+    }
+    free(msg->u.avc_capacity_indication.addr);
+    msg->u.avc_capacity_indication.addr = addr_copy;
+    msg->u.avc_capacity_indication.port = (int)ntohs(peer.sin_port);
+    return AGORAHEX_OK;
+}
+
 static agorahex_result_t on_signal_frame(void *ctx, const uint8_t *json, size_t json_len) {
     agorahex_signal_dispatch_ctx_t *dispatch = (agorahex_signal_dispatch_ctx_t *)ctx;
     agorahex_message_t msg;
@@ -444,6 +466,13 @@ static agorahex_result_t on_signal_frame(void *ctx, const uint8_t *json, size_t 
     r = agorahex_parse_envelope((const char *)json, json_len, &msg);
     if (r != AGORAHEX_OK) {
         return r;
+    }
+    if (dispatch->server_mode && msg.kind == AGORAHEX_KIND_AVC_CAPACITY_INDICATION) {
+        r = enrich_capacity_peer(dispatch->fd, &msg);
+        if (r != AGORAHEX_OK) {
+            agorahex_message_free(&msg);
+            return r;
+        }
     }
     if (dispatch->cb) {
         dispatch->cb(dispatch->fd, json, (int)json_len, &msg);

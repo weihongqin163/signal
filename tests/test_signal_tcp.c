@@ -18,7 +18,9 @@
 #include <time.h>
 #include <unistd.h>
 
-static const char g_ping[] = "{\"HangupIndication\":{\"callId\":\"00000000-0000-0000-0000-000000000001\",\"dropCode\":0}}";
+static const char g_ping[] =
+    "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"curCapacity\":1,"
+    "\"addr\":\"203.0.113.77\",\"port\":1,\"identifier\":\"tcp-test-avc\"}}";
 static const char g_pong[] = "{\"MutedIndication\":{\"callId\":\"00000000-0000-0000-0000-000000000001\",\"muted\":true}}";
 static char g_server_ipv4_addr[] = "127.0.0.1";
 
@@ -47,8 +49,12 @@ static void server_cb(int fd, const void *json, int len, agorahex_message_t *msg
     if (fd < 0 || !msg_t) {
         return;
     }
-    if (msg_t->kind == AGORAHEX_KIND_HANGUP_INDICATION && len == (int)(sizeof g_ping - 1u) &&
-        memcmp(json, g_ping, (size_t)len) == 0) {
+    if (msg_t->kind == AGORAHEX_KIND_AVC_CAPACITY_INDICATION && len == (int)(sizeof g_ping - 1u) &&
+        memcmp(json, g_ping, (size_t)len) == 0 && msg_t->u.avc_capacity_indication.addr &&
+        strcmp(msg_t->u.avc_capacity_indication.addr, "127.0.0.1") == 0 &&
+        msg_t->u.avc_capacity_indication.port > 0 && msg_t->u.avc_capacity_indication.port != 1 &&
+        msg_t->u.avc_capacity_indication.identifier &&
+        strcmp(msg_t->u.avc_capacity_indication.identifier, "tcp-test-avc") == 0) {
         g_server_peer_fd = fd;
         g_server_received = 1;
     }
