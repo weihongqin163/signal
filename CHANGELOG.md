@@ -2,6 +2,18 @@
 
 本文档记录仓库中值得追踪的版本变更，重点描述对使用者和维护者有意义的交付内容。
 
+## [1.0.8] - 2026-08-18
+
+扩展 signal 连接状态回调，支持客户端 TCP 连接成功通知。
+
+### 变更
+
+- 将 `agorahex_signal_disconnect_cb_t` 重命名为 `agorahex_signal_connect_status_cb_t`，并将 `agorahex_signal_disconnect_reason_t` 重命名为 `agorahex_signal_connect_status_t`；这是源代码不兼容的公开 API 变更。
+- 新增 `AGORAHEX_SIGNAL_CLIENT_CONNECTED` 状态。客户端每次 TCP 连接或重连完成后，`agorahex_signal_poll()` 会同步调用状态回调，并传入仍有效的连接 socket fd。
+- 保留原有服务端客户端断开通知及三个断开状态的数值和语义；服务端回调中的 fd 仍已关闭，仅用于应用映射。
+- 显式调用 `agorahex_signal_close()` 不产生连接状态通知。
+- 更新 signal server 示例和回归测试，覆盖客户端连接成功状态、回调 fd 有效性以及关闭后不重复通知。
+
 ## [1.0.7] - 2026-08-17
 
 增加 AVC 容量上报协议和 signal server 客户端断开通知。
