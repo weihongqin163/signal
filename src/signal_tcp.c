@@ -41,7 +41,7 @@ typedef struct agorahex_signal_server {
     int tcp_port;
     int running;
     agorahex_signal_cb_t cb;
-    agorahex_signal_disconnect_cb_t disconnect_cb;
+    agorahex_signal_connect_status_cb_t status_cb;
     agorahex_signal_conn_t clients[AGORAHEX_SIGNAL_MAX_CLIENTS];
     int client_count;
 } agorahex_signal_server_t;
@@ -52,6 +52,7 @@ typedef struct agorahex_signal_client {
     int tcp_port;
     int running;
     agorahex_signal_cb_t cb;
+    agorahex_signal_connect_status_cb_t status_cb;
 } agorahex_signal_client_t;
 
 typedef struct agorahex_signal_runtime {
@@ -73,12 +74,13 @@ static void ensure_runtime_initialized(void);
 static void runtime_reset(void);
 static void conn_reset(agorahex_signal_conn_t *conn);
 static void server_disconnect_client(agorahex_signal_conn_t *conn,
-                                     agorahex_signal_disconnect_reason_t reason);
+                                     agorahex_signal_connect_status_t status);
 static int set_nonblocking(int fd);
 static int set_no_sigpipe(int fd);
 static int create_stream_socket(void);
-static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_disconnect_cb_t disconnect_cb);
-static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb);
+static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_connect_status_cb_t status_cb);
+static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb,
+                        agorahex_signal_connect_status_cb_t status_cb);
 static void close_server_mode(void);
 static void close_client_mode(void);
 static int validate_signal_payload(const void *json, int len);
@@ -87,7 +89,7 @@ static int server_send_one(int fd, const uint8_t *frame, size_t frame_len);
 static int server_send_all(const uint8_t *frame, size_t frame_len);
 static int handle_server_poll(int timeout_ms);
 static int handle_client_poll(int timeout_ms);
-static int handle_server_readable(agorahex_signal_conn_t *conn, agorahex_signal_disconnect_reason_t *reason);
+static int handle_server_readable(agorahex_signal_conn_t *conn, agorahex_signal_connect_status_t *status);
 static int handle_client_readable(agorahex_signal_conn_t *conn, agorahex_signal_cb_t cb);
 static int accept_new_clients(agorahex_signal_server_t *server);
 static int find_free_client_slot(const agorahex_signal_server_t *server);
@@ -126,7 +128,7 @@ static void conn_reset(agorahex_signal_conn_t *conn) {
 }
 
 static void server_disconnect_client(agorahex_signal_conn_t *conn,
-                                     agorahex_signal_disconnect_reason_t reason) {
+                                     agorahex_signal_connect_status_t status) {
     int fd;
 
     if (!conn || conn->fd < 0 || conn->state != AGORAHEX_SIGNAL_CONN_CONNECTED) {
@@ -137,8 +139,8 @@ static void server_disconnect_client(agorahex_signal_conn_t *conn,
     if (g_runtime.server.client_count > 0) {
         g_runtime.server.client_count--;
     }
-    if (g_runtime.server.disconnect_cb) {
-        g_runtime.server.disconnect_cb(fd, reason);
+    if (g_runtime.server.status_cb) {
+        g_runtime.server.status_cb(fd, status);
     }
 }
 
@@ -151,7 +153,7 @@ static void runtime_reset(void) {
     g_runtime.server.tcp_port = 0;
     g_runtime.server.running = 0;
     g_runtime.server.cb = NULL;
-    g_runtime.server.disconnect_cb = NULL;
+    g_runtime.server.status_cb = NULL;
     g_runtime.server.client_count = 0;
     for (i = 0; i < AGORAHEX_SIGNAL_MAX_CLIENTS; i++) {
         conn_reset(&g_runtime.server.clients[i]);
@@ -161,6 +163,7 @@ static void runtime_reset(void) {
     g_runtime.client.tcp_port = 0;
     g_runtime.client.running = 0;
     g_runtime.client.cb = NULL;
+    g_runtime.client.status_cb = NULL;
     conn_reset(&g_runtime.client.conn);
 }
 
@@ -215,7 +218,7 @@ static int validate_signal_payload(const void *json, int len) {
     return AGORAHEX_OK;
 }
 
-static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_disconnect_cb_t disconnect_cb) {
+static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_connect_status_cb_t status_cb) {
     int fd;
     int one = 1;
     struct sockaddr_in addr;
@@ -252,7 +255,7 @@ static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_d
     g_runtime.server.tcp_port = tcp_port;
     g_runtime.server.running = 1;
     g_runtime.server.cb = cb;
-    g_runtime.server.disconnect_cb = disconnect_cb;
+    g_runtime.server.status_cb = status_cb;
     g_runtime.server.client_count = 0;
     for (i = 0; i < AGORAHEX_SIGNAL_MAX_CLIENTS; i++) {
         conn_reset(&g_runtime.server.clients[i]);
@@ -260,19 +263,21 @@ static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_d
     return AGORAHEX_OK;
 }
 
-static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb) {
+static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb,
+                        agorahex_signal_connect_status_cb_t status_cb) {
     g_runtime.mode = AGORAHEX_SIGNAL_CLIENT_MODE;
     strcpy(g_runtime.client.server_ipv4_addr, server_ipv4_addr);
     g_runtime.client.tcp_port = tcp_port;
     g_runtime.client.running = 1;
     g_runtime.client.cb = cb;
+    g_runtime.client.status_cb = status_cb;
     conn_reset(&g_runtime.client.conn);
     (void)client_begin_connect(&g_runtime.client);
     return AGORAHEX_OK;
 }
 
 int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb,
-                          agorahex_signal_disconnect_cb_t disconnect_cb) {
+                          agorahex_signal_connect_status_cb_t status_cb) {
     struct in_addr parsed_addr;
 
     ensure_runtime_initialized();
@@ -284,9 +289,9 @@ int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port,
         return AGORAHEX_ERR_INVALID_ARG;
     }
     if (server_mode == AGORAHEX_SIGNAL_SERVER_MODE) {
-        return start_server(tcp_port, cb, disconnect_cb);
+        return start_server(tcp_port, cb, status_cb);
     }
-    return start_client(server_ipv4_addr, tcp_port, cb);
+    return start_client(server_ipv4_addr, tcp_port, cb, status_cb);
 }
 
 static int write_all(agorahex_signal_conn_t *conn, const uint8_t *buf, size_t len) {
@@ -481,7 +486,7 @@ static agorahex_result_t on_signal_frame(void *ctx, const uint8_t *json, size_t 
     return AGORAHEX_OK;
 }
 
-static int handle_server_readable(agorahex_signal_conn_t *conn, agorahex_signal_disconnect_reason_t *reason) {
+static int handle_server_readable(agorahex_signal_conn_t *conn, agorahex_signal_connect_status_t *status) {
     uint8_t buf[32u << 10u];
     agorahex_signal_dispatch_ctx_t ctx;
 
@@ -493,7 +498,7 @@ static int handle_server_readable(agorahex_signal_conn_t *conn, agorahex_signal_
         if (n > 0) {
             agorahex_result_t r = agorahex_frame_decoder_append(&conn->decoder, buf, (size_t)n, &ctx, on_signal_frame);
             if (r != AGORAHEX_OK) {
-                *reason = (r == AGORAHEX_ERR_NO_MEMORY || r == AGORAHEX_ERR_IO)
+                *status = (r == AGORAHEX_ERR_NO_MEMORY || r == AGORAHEX_ERR_IO)
                               ? AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR
                               : AGORAHEX_SIGNAL_DISCONNECT_PROTOCOL_ERROR;
                 return (int)r;
@@ -501,7 +506,7 @@ static int handle_server_readable(agorahex_signal_conn_t *conn, agorahex_signal_
             continue;
         }
         if (n == 0) {
-            *reason = AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED;
+            *status = AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED;
             return AGORAHEX_ERR_IO;
         }
         if (errno == EINTR) {
@@ -510,7 +515,7 @@ static int handle_server_readable(agorahex_signal_conn_t *conn, agorahex_signal_
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             return AGORAHEX_OK;
         }
-        *reason = AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR;
+        *status = AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR;
         return AGORAHEX_ERR_IO;
     }
 }
@@ -591,15 +596,15 @@ static int handle_server_poll(int timeout_ms) {
         int slot = slots[i];
         agorahex_signal_conn_t *conn;
         int read_rc;
-        agorahex_signal_disconnect_reason_t reason = AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR;
+        agorahex_signal_connect_status_t status = AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR;
         if (slot < 0) {
             continue;
         }
         conn = &g_runtime.server.clients[slot];
         if ((pfds[i].revents & POLLIN) != 0) {
-            read_rc = handle_server_readable(conn, &reason);
+            read_rc = handle_server_readable(conn, &status);
             if (read_rc != AGORAHEX_OK) {
-                server_disconnect_client(conn, reason);
+                server_disconnect_client(conn, status);
                 continue;
             }
         }
@@ -647,7 +652,7 @@ static int client_begin_connect(agorahex_signal_client_t *client) {
     client->conn.fd = fd;
     rc = connect(fd, (struct sockaddr *)&addr, sizeof addr);
     if (rc == 0) {
-        client->conn.state = AGORAHEX_SIGNAL_CONN_CONNECTED;
+        client->conn.state = AGORAHEX_SIGNAL_CONN_CONNECTING;
         return AGORAHEX_OK;
     }
     if (errno == EINPROGRESS || errno == EALREADY || errno == EWOULDBLOCK) {
@@ -694,6 +699,9 @@ static int handle_client_poll(int timeout_ms) {
                 return AGORAHEX_OK;
             }
             client->conn.state = AGORAHEX_SIGNAL_CONN_CONNECTED;
+            if (client->status_cb) {
+                client->status_cb(client->conn.fd, AGORAHEX_SIGNAL_CLIENT_CONNECTED);
+            }
             if ((pfd.revents & POLLIN) == 0) {
                 return AGORAHEX_OK;
             }
@@ -739,7 +747,7 @@ static void close_server_mode(void) {
     g_runtime.server.client_count = 0;
     g_runtime.server.running = 0;
     g_runtime.server.cb = NULL;
-    g_runtime.server.disconnect_cb = NULL;
+    g_runtime.server.status_cb = NULL;
     g_runtime.server.tcp_port = 0;
 }
 
@@ -748,6 +756,7 @@ static void close_client_mode(void) {
     memset(g_runtime.client.server_ipv4_addr, 0, sizeof g_runtime.client.server_ipv4_addr);
     g_runtime.client.running = 0;
     g_runtime.client.cb = NULL;
+    g_runtime.client.status_cb = NULL;
     g_runtime.client.tcp_port = 0;
 }
 

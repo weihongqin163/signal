@@ -69,8 +69,8 @@ static void server_cb(int fd, const void *json, int len, agorahex_message_t *msg
     fflush(stdout);
 }
 
-static void server_disconnect_cb(int fd, agorahex_signal_disconnect_reason_t reason) {
-    fprintf(stderr, "client disconnected fd=%d reason=%d\n", fd, (int)reason);
+static void server_connect_status_cb(int fd, agorahex_signal_connect_status_t status) {
+    fprintf(stderr, "client connection status fd=%d status=%d\n", fd, (int)status);
 }
 
 static void usage(const char *argv0) {
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
     (void)sigaction(SIGINT, &sa, NULL);
 
     int rc =
-        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, server_ipv4_addr, port, server_cb, server_disconnect_cb);
+        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, server_ipv4_addr, port, server_cb, server_connect_status_cb);
     if (rc != AGORAHEX_OK) {
         fprintf(stderr, "agorahex_signal_start err=%d (%s)\n", rc, agorahex_strerror((agorahex_result_t)rc));
         return 1;

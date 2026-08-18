@@ -29,7 +29,7 @@ static const char g_reply[] =
 static int g_message_fd = AGORAHEX_SIGNAL_BROADCAST_FD;
 static int g_disconnect_count;
 static int g_disconnect_fd = AGORAHEX_SIGNAL_BROADCAST_FD;
-static agorahex_signal_disconnect_reason_t g_disconnect_reason;
+static agorahex_signal_connect_status_t g_connect_status;
 
 static void sleep_ms(long ms) {
     struct timespec ts;
@@ -42,7 +42,7 @@ static void reset_observations(void) {
     g_message_fd = AGORAHEX_SIGNAL_BROADCAST_FD;
     g_disconnect_count = 0;
     g_disconnect_fd = AGORAHEX_SIGNAL_BROADCAST_FD;
-    g_disconnect_reason = AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED;
+    g_connect_status = AGORAHEX_SIGNAL_DISCONNECT_PEER_CLOSED;
 }
 
 static void message_cb(int fd, const void *json, int len, agorahex_message_t *msg_t) {
@@ -53,10 +53,10 @@ static void message_cb(int fd, const void *json, int len, agorahex_message_t *ms
     }
 }
 
-static void disconnect_cb(int fd, agorahex_signal_disconnect_reason_t reason) {
+static void connect_status_cb(int fd, agorahex_signal_connect_status_t status) {
     g_disconnect_count++;
     g_disconnect_fd = fd;
-    g_disconnect_reason = reason;
+    g_connect_status = status;
 }
 
 static int connect_raw_client(int port) {
@@ -100,7 +100,7 @@ static int send_frame(int fd, const char *json) {
     return 0;
 }
 
-static int start_server(int port, agorahex_signal_disconnect_cb_t cb) {
+static int start_server(int port, agorahex_signal_connect_status_cb_t cb) {
     int rc = agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, g_server_addr, port, message_cb, cb);
     if (rc == AGORAHEX_ERR_IO) {
         fprintf(stderr, "skip: local tcp bind not permitted in this environment\n");
@@ -117,7 +117,7 @@ static int test_protocol_error(int port) {
     int client_fd;
     int rc;
     reset_observations();
-    rc = start_server(port, disconnect_cb);
+    rc = start_server(port, connect_status_cb);
     if (rc != 0) {
         return rc;
     }
@@ -131,7 +131,7 @@ static int test_protocol_error(int port) {
         return 1;
     }
     close(client_fd);
-    if (g_disconnect_count != 1 || g_disconnect_reason != AGORAHEX_SIGNAL_DISCONNECT_PROTOCOL_ERROR ||
+    if (g_disconnect_count != 1 || g_connect_status != AGORAHEX_SIGNAL_DISCONNECT_PROTOCOL_ERROR ||
         g_disconnect_fd < 0) {
         agorahex_signal_close();
         return 1;
@@ -146,7 +146,7 @@ static int test_send_failure(int port) {
     int client_fd;
     int rc;
     reset_observations();
-    rc = start_server(port, disconnect_cb);
+    rc = start_server(port, connect_status_cb);
     if (rc != 0) {
         return rc;
     }
@@ -164,9 +164,9 @@ static int test_send_failure(int port) {
     sleep_ms(20);
     rc = agorahex_signal_send(g_message_fd, g_reply, (int)(sizeof g_reply - 1u));
     if (rc != AGORAHEX_ERR_IO || g_disconnect_count != 1 || g_disconnect_fd != g_message_fd ||
-        g_disconnect_reason != AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR) {
+        g_connect_status != AGORAHEX_SIGNAL_DISCONNECT_IO_ERROR) {
         fprintf(stderr, "send failure callback mismatch rc=%d count=%d reason=%d\n", rc, g_disconnect_count,
-                (int)g_disconnect_reason);
+                (int)g_connect_status);
         agorahex_signal_close();
         return 1;
     }
@@ -195,7 +195,7 @@ static int test_no_callback_cases(int port) {
     close(client_fd);
     agorahex_signal_close();
 
-    rc = start_server(port + 1, disconnect_cb);
+    rc = start_server(port + 1, connect_status_cb);
     if (rc != 0) {
         return rc;
     }
