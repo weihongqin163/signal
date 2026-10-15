@@ -116,3 +116,10 @@ make clean
 - 错误描述：`agorahex_strerror`
 
 具体接口声明见 `include/agorahex/` 下头文件。
+
+`AVCCallPropertiesChangedIndication` 支持接收解析，回调消息类型为
+`AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION`。通过
+`msg_t->u.avc_call_properties_changed_indication.call_id` 获取通话 ID，通过
+`msg_t->u.avc_call_properties_changed_indication.properties.is_audio_only` 获取纯音频模式。
+`properties` 或 `isAudioOnly` 缺失时，`is_audio_only` 默认为 `false`。
+该消息仅支持解析；序列化返回 `AGORAHEX_ERR_UNKNOWN_KIND`。解析字段的生命周期与其他接收消息一致。

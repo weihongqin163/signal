@@ -185,6 +185,16 @@ typedef struct agorahex_avc_capacity_indication {
     char *identifier;
 } agorahex_avc_capacity_indication_t;
 
+typedef struct agorahex_avc_call_properties {
+    /* Defaults to false when properties or isAudioOnly is absent or invalid. */
+    bool is_audio_only;
+} agorahex_avc_call_properties_t;
+
+typedef struct agorahex_avc_call_properties_changed_indication {
+    char *call_id;
+    agorahex_avc_call_properties_t properties;
+} agorahex_avc_call_properties_changed_indication_t;
+
 #ifdef __cplusplus
 }
 #endif

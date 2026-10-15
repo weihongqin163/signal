@@ -31,6 +31,7 @@ typedef enum agorahex_kind {
     AGORAHEX_KIND_AGORA_DIAL_OUT_REQUEST,
     AGORAHEX_KIND_AGORA_DIAL_OUT_REPLY,
     AGORAHEX_KIND_AVC_CAPACITY_INDICATION,
+    AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION,
 } agorahex_kind_t;
 
 typedef struct agorahex_message {
@@ -50,6 +51,7 @@ typedef struct agorahex_message {
         agorahex_stop_content_indication_t stop_content_indication;
         agorahex_dtmf_indication_t dtmf_indication;
         agorahex_avc_capacity_indication_t avc_capacity_indication;
+        agorahex_avc_call_properties_changed_indication_t avc_call_properties_changed_indication;
     } u;
 } agorahex_message_t;
 

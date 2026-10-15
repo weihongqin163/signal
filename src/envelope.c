@@ -193,6 +193,9 @@ void agorahex_message_free(agorahex_message_t *m) {
         free(m->u.avc_capacity_indication.identifier);
         memset(&m->u.avc_capacity_indication, 0, sizeof(m->u.avc_capacity_indication));
         break;
+    case AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION:
+        free(m->u.avc_call_properties_changed_indication.call_id);
+        break;
     default:
         break;
     }
@@ -229,6 +232,8 @@ const char *agorahex_kind_cstr(agorahex_kind_t k) {
         return "DTMFIndication";
     case AGORAHEX_KIND_AVC_CAPACITY_INDICATION:
         return "AVCCapacityIndication";
+    case AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION:
+        return "AVCCallPropertiesChangedIndication";
     default:
         return "";
     }
@@ -279,6 +284,9 @@ static agorahex_kind_t kind_from_cstr(const char *k) {
     }
     if (strcmp(k, "AVCCapacityIndication") == 0) {
         return AGORAHEX_KIND_AVC_CAPACITY_INDICATION;
+    }
+    if (strcmp(k, "AVCCallPropertiesChangedIndication") == 0) {
+        return AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION;
     }
     return (agorahex_kind_t)-1;
 }
@@ -750,6 +758,25 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
         it = cJSON_GetObjectItemCaseSensitive(body, "event");
         if (cJSON_IsString(it)) {
             x->event = dup_or_null(cJSON_GetStringValue(it));
+        }
+        return AGORAHEX_OK;
+    }
+    case AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION: {
+        agorahex_avc_call_properties_changed_indication_t *x =
+            &out->u.avc_call_properties_changed_indication;
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(body, "callId");
+        const cJSON *properties = cJSON_GetObjectItemCaseSensitive(body, "properties");
+        if (cJSON_IsString(it)) {
+            x->call_id = dup_or_null(cJSON_GetStringValue(it));
+            if (!x->call_id) {
+                return AGORAHEX_ERR_NO_MEMORY;
+            }
+        }
+        if (cJSON_IsObject(properties)) {
+            it = cJSON_GetObjectItemCaseSensitive(properties, "isAudioOnly");
+            if (cJSON_IsBool(it)) {
+                x->properties.is_audio_only = cJSON_IsTrue(it);
+            }
         }
         return AGORAHEX_OK;
     }

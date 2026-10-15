@@ -1,0 +1,9 @@
+
+{
+    "AVCCallPropertiesChangedIndication": {
+      "callId": "call-1",
+      "properties": {
+        "isAudioOnly": true
+      }
+    }
+  }

@@ -628,7 +628,112 @@ static int test_avc_capacity_required_field_validation(void) {
     return 0;
 }
 
+static int test_avc_call_properties_changed_indication_parse(void) {
+    char raw[] =
+        "{\"AVCCallPropertiesChangedIndication\":{\"callId\":\"call-1\","
+        "\"properties\":{\"isAudioOnly\":true}}}";
+    agorahex_message_t m;
+    if (agorahex_parse_envelope(raw, strlen(raw), &m) != AGORAHEX_OK) {
+        return fail("parse AVC call properties changed indication");
+    }
+    memset(raw, 'x', sizeof raw);
+    const agorahex_avc_call_properties_changed_indication_t *x =
+        &m.u.avc_call_properties_changed_indication;
+    if (m.kind != AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION ||
+        strcmp(agorahex_kind_cstr(m.kind), "AVCCallPropertiesChangedIndication") != 0 ||
+        !x->call_id || strcmp(x->call_id, "call-1") != 0 || !x->properties.is_audio_only) {
+        agorahex_message_free(&m);
+        return fail("AVC call properties changed kind and owned fields");
+    }
+    char *json = NULL;
+    size_t json_len = 0;
+    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_ERR_UNKNOWN_KIND) {
+        free(json);
+        agorahex_message_free(&m);
+        return fail("AVC call properties changed is receive-only");
+    }
+    agorahex_message_free(&m);
+    if (x->call_id != NULL || x->properties.is_audio_only) {
+        return fail("clear AVC call properties changed fields");
+    }
+    agorahex_message_free(&m);
+    return 0;
+}
+
+static int test_avc_call_properties_changed_defaults(void) {
+    static const struct {
+        const char *body;
+        const char *call_id;
+        bool is_audio_only;
+    } cases[] = {
+        {"{\"callId\":\"call-1\",\"properties\":{\"isAudioOnly\":false}}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":{}}", "call-1", false},
+        {"{\"callId\":\"call-1\"}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":null}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":true}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":\"invalid\"}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":[{\"isAudioOnly\":true}]}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":{\"isAudioOnly\":\"true\"}}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":{\"isAudioOnly\":1}}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":{\"isAudioOnly\":null}}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"isAudioOnly\":true}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"properties\":{\"IsAudioOnly\":true}}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"extra\":1,"
+         "\"properties\":{\"isAudioOnly\":true,\"futureProperty\":{}}}", "call-1", true},
+        {"{\"callId\":\"\",\"properties\":{\"isAudioOnly\":true}}", "", true},
+        {"{\"properties\":{\"isAudioOnly\":true}}", NULL, true},
+        {"{\"callId\":42,\"properties\":{\"isAudioOnly\":true}}", NULL, true},
+        {"{}", NULL, false},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        char raw[512];
+        int len = snprintf(raw, sizeof raw, "{\"AVCCallPropertiesChangedIndication\":%s}", cases[i].body);
+        agorahex_message_t m;
+        memset(&m, 0xa5, sizeof m);
+        if (len < 0 || (size_t)len >= sizeof raw ||
+            agorahex_parse_envelope(raw, (size_t)len, &m) != AGORAHEX_OK) {
+            return fail("parse AVC call properties changed defaults");
+        }
+        const agorahex_avc_call_properties_changed_indication_t *x =
+            &m.u.avc_call_properties_changed_indication;
+        if (m.kind != AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION ||
+            x->properties.is_audio_only != cases[i].is_audio_only ||
+            (cases[i].call_id && (!x->call_id || strcmp(x->call_id, cases[i].call_id) != 0)) ||
+            (!cases[i].call_id && x->call_id)) {
+            fprintf(stderr, "AVC call properties changed defaults case %zu\n", i);
+            agorahex_message_free(&m);
+            return fail("AVC call properties changed defaults and tolerant fields");
+        }
+        agorahex_message_free(&m);
+    }
+    return 0;
+}
+
+static int test_avc_call_properties_changed_invalid_body(void) {
+    static const char *invalid[] = {
+        "{\"AVCCallPropertiesChangedIndication\":null}",
+        "{\"AVCCallPropertiesChangedIndication\":[]}",
+        "{\"AVCCallPropertiesChangedIndication\":true}",
+        "{\"AVCCallPropertiesChangedIndication\":42}",
+        "{\"AVCCallPropertiesChangedIndication\":\"invalid\"}",
+    };
+    for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        agorahex_message_t m;
+        agorahex_result_t r = agorahex_parse_envelope(invalid[i], strlen(invalid[i]), &m);
+        agorahex_message_free(&m);
+        if (r != AGORAHEX_ERR_JSON_PARSE) {
+            return fail("reject non-object AVC call properties changed body");
+        }
+    }
+    return 0;
+}
+
 int main(void) {
+    if (test_avc_call_properties_changed_indication_parse() != 0 ||
+        test_avc_call_properties_changed_defaults() != 0 ||
+        test_avc_call_properties_changed_invalid_body() != 0) {
+        return 1;
+    }
     if (test_avc_display_name_empty_value() != 0 || test_avc_display_name_roundtrip() != 0 ||
         test_avc_user_agent_audio_roundtrip() != 0 ||
         test_avc_missing_audio_and_content_properties_default() != 0 ||
