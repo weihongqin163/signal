@@ -1334,6 +1334,26 @@ agorahex_result_t agorahex_marshal_envelope(const agorahex_message_t *msg, char 
         }
         break;
     }
+    case AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION: {
+        const agorahex_avc_call_properties_changed_indication_t *x =
+            &msg->u.avc_call_properties_changed_indication;
+        body = cJSON_CreateObject();
+        if (!body) {
+            break;
+        }
+        if (!cJSON_AddStringToObject(body, "callId", x->call_id ? x->call_id : "")) {
+            cJSON_Delete(body);
+            body = NULL;
+            break;
+        }
+        cJSON *properties = cJSON_AddObjectToObject(body, "properties");
+        if (!properties ||
+            !cJSON_AddBoolToObject(properties, "isAudioOnly", x->properties.is_audio_only ? 1 : 0)) {
+            cJSON_Delete(body);
+            body = NULL;
+        }
+        break;
+    }
     case AGORAHEX_KIND_AVC_CAPACITY_INDICATION: {
         const agorahex_avc_capacity_indication_t *x = &msg->u.avc_capacity_indication;
         size_t identifier_len = x->identifier ? strlen(x->identifier) : 0u;

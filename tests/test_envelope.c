@@ -645,18 +645,96 @@ static int test_avc_call_properties_changed_indication_parse(void) {
         agorahex_message_free(&m);
         return fail("AVC call properties changed kind and owned fields");
     }
-    char *json = NULL;
-    size_t json_len = 0;
-    if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_ERR_UNKNOWN_KIND) {
-        free(json);
-        agorahex_message_free(&m);
-        return fail("AVC call properties changed is receive-only");
-    }
     agorahex_message_free(&m);
     if (x->call_id != NULL || x->properties.is_audio_only) {
         return fail("clear AVC call properties changed fields");
     }
     agorahex_message_free(&m);
+    return 0;
+}
+
+static int test_avc_call_properties_changed_marshal(void) {
+    static const struct {
+        char *call_id;
+        bool is_audio_only;
+    } cases[] = {
+        {"call-1", true}, {"call-1", false},
+        {"", true}, {"", false},
+        {NULL, true}, {NULL, false},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        agorahex_message_t m = {0};
+        m.kind = AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION;
+        m.u.avc_call_properties_changed_indication.call_id = cases[i].call_id;
+        m.u.avc_call_properties_changed_indication.properties.is_audio_only = cases[i].is_audio_only;
+        const char *expected_call_id = cases[i].call_id ? cases[i].call_id : "";
+        char *json = NULL;
+        size_t json_len = 0;
+        if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK || !json ||
+            json_len == 0 || json_len != strlen(json)) {
+            free(json);
+            return fail("marshal AVC call properties changed indication");
+        }
+        cJSON *root = cJSON_ParseWithLength(json, json_len);
+        const cJSON *body = cJSON_GetObjectItemCaseSensitive(root, "AVCCallPropertiesChangedIndication");
+        const cJSON *call_id = cJSON_GetObjectItemCaseSensitive(body, "callId");
+        const cJSON *properties = cJSON_GetObjectItemCaseSensitive(body, "properties");
+        const cJSON *is_audio_only = cJSON_GetObjectItemCaseSensitive(properties, "isAudioOnly");
+        if (!cJSON_IsObject(root) || cJSON_GetArraySize(root) != 1 ||
+            !cJSON_IsObject(body) || !cJSON_IsString(call_id) ||
+            strcmp(cJSON_GetStringValue(call_id), expected_call_id) != 0 ||
+            !cJSON_IsObject(properties) || !cJSON_IsBool(is_audio_only) ||
+            (cJSON_IsTrue(is_audio_only) != 0) != cases[i].is_audio_only) {
+            cJSON_Delete(root);
+            free(json);
+            return fail("AVC call properties changed serialized fields");
+        }
+        cJSON_Delete(root);
+        agorahex_message_t parsed;
+        agorahex_result_t result = agorahex_parse_envelope(json, json_len, &parsed);
+        free(json);
+        if (result != AGORAHEX_OK) {
+            return fail("parse serialized AVC call properties changed indication");
+        }
+        const agorahex_avc_call_properties_changed_indication_t *x =
+            &parsed.u.avc_call_properties_changed_indication;
+        if (parsed.kind != m.kind || !x->call_id || strcmp(x->call_id, expected_call_id) != 0 ||
+            x->properties.is_audio_only != cases[i].is_audio_only) {
+            agorahex_message_free(&parsed);
+            return fail("AVC call properties changed round trip");
+        }
+        agorahex_message_free(&parsed);
+    }
+    return 0;
+}
+
+static int test_avc_call_properties_changed_marshal_allocation_failure(void) {
+    static const size_t fail_sizes[] = {
+        sizeof("callId"), sizeof("properties"), sizeof("isAudioOnly"),
+    };
+    agorahex_message_t m = {0};
+    m.kind = AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION;
+    m.u.avc_call_properties_changed_indication.call_id = "call-1";
+    m.u.avc_call_properties_changed_indication.properties.is_audio_only = true;
+    cJSON_Hooks hooks = {
+        .malloc_fn = fail_cjson_allocation,
+        .free_fn = free_cjson_allocation,
+    };
+    for (size_t i = 0; i < sizeof fail_sizes / sizeof fail_sizes[0]; i++) {
+        char *json = NULL;
+        size_t json_len = 123;
+        cjson_fail_allocation_size = fail_sizes[i];
+        cjson_fail_allocation_occurrence = 0;
+        cjson_allocation_occurrence = 0;
+        cJSON_InitHooks(&hooks);
+        agorahex_result_t result = agorahex_marshal_envelope(&m, &json, &json_len);
+        cJSON_InitHooks(NULL);
+        int failed = result != AGORAHEX_ERR_NO_MEMORY || json != NULL || json_len != 0;
+        free(json);
+        if (failed) {
+            return fail("report AVC call properties changed allocation failure");
+        }
+    }
     return 0;
 }
 
@@ -730,6 +808,8 @@ static int test_avc_call_properties_changed_invalid_body(void) {
 
 int main(void) {
     if (test_avc_call_properties_changed_indication_parse() != 0 ||
+        test_avc_call_properties_changed_marshal() != 0 ||
+        test_avc_call_properties_changed_marshal_allocation_failure() != 0 ||
         test_avc_call_properties_changed_defaults() != 0 ||
         test_avc_call_properties_changed_invalid_body() != 0) {
         return 1;
