@@ -102,6 +102,12 @@ typedef struct agorahex_avc_dial_in_request {
     char *password;
 } agorahex_avc_dial_in_request_t;
 
+typedef struct agorahex_avc_dial_in_keepalive_indication {
+    char *call_id;
+    /* Only JSON booleans are accepted; absent or invalid values default to false. */
+    bool detected;
+} agorahex_avc_dial_in_keepalive_indication_t;
+
 typedef struct agorahex_avc_dial_in_reply {
     char *call_id;
     int return_code;

@@ -806,7 +806,180 @@ static int test_avc_call_properties_changed_invalid_body(void) {
     return 0;
 }
 
+static int test_avc_dial_in_keepalive_indication_parse(void) {
+    char raw[] =
+        "{\"AVCDialInKeepaliveIndication\":{\"callId\":\"call-1\",\"detected\":true}}";
+    agorahex_message_t m;
+    if (agorahex_parse_envelope(raw, sizeof raw - 1u, &m) != AGORAHEX_OK) {
+        return fail("parse AVC dial-in keepalive indication");
+    }
+    memset(raw, 'x', sizeof raw);
+    const agorahex_avc_dial_in_keepalive_indication_t *x = &m.u.avc_dial_in_keepalive_indication;
+    if (m.kind != AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION ||
+        strcmp(agorahex_kind_cstr(m.kind), "AVCDialInKeepaliveIndication") != 0 ||
+        !x->call_id || strcmp(x->call_id, "call-1") != 0 || !x->detected) {
+        agorahex_message_free(&m);
+        return fail("AVC dial-in keepalive kind and owned fields");
+    }
+    agorahex_message_free(&m);
+    if (x->call_id != NULL || x->detected) {
+        return fail("clear AVC dial-in keepalive fields");
+    }
+    agorahex_message_free(&m);
+    return 0;
+}
+
+static int test_avc_dial_in_keepalive_defaults(void) {
+    static const struct {
+        const char *body;
+        const char *call_id;
+        bool detected;
+    } cases[] = {
+        {"{\"callId\":\"call-1\",\"detected\":false}", "call-1", false},
+        {"{\"callId\":\"call-1\"}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"detected\":\"true\"}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"detected\":1}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"detected\":null}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"detected\":{}}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"detected\":[true]}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"Detected\":true}", "call-1", false},
+        {"{\"callId\":\"call-1\",\"detected\":true,\"extra\":{}}", "call-1", true},
+        {"{\"callId\":\"\",\"detected\":true}", "", true},
+        {"{\"detected\":true}", NULL, true},
+        {"{\"callId\":42,\"detected\":true}", NULL, true},
+        {"{}", NULL, false},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        char raw[256];
+        int len = snprintf(raw, sizeof raw, "{\"AVCDialInKeepaliveIndication\":%s}", cases[i].body);
+        agorahex_message_t m;
+        memset(&m, 0xa5, sizeof m);
+        if (len < 0 || (size_t)len >= sizeof raw ||
+            agorahex_parse_envelope(raw, (size_t)len, &m) != AGORAHEX_OK) {
+            return fail("parse AVC dial-in keepalive defaults");
+        }
+        const agorahex_avc_dial_in_keepalive_indication_t *x = &m.u.avc_dial_in_keepalive_indication;
+        if (m.kind != AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION ||
+            x->detected != cases[i].detected ||
+            (cases[i].call_id && (!x->call_id || strcmp(x->call_id, cases[i].call_id) != 0)) ||
+            (!cases[i].call_id && x->call_id)) {
+            fprintf(stderr, "AVC dial-in keepalive defaults case %zu\n", i);
+            agorahex_message_free(&m);
+            return fail("AVC dial-in keepalive defaults and tolerant fields");
+        }
+        agorahex_message_free(&m);
+    }
+    return 0;
+}
+
+static int test_avc_dial_in_keepalive_invalid_body(void) {
+    static const char *bodies[] = {"null", "[]", "true", "42", "\"invalid\""};
+    for (size_t i = 0; i < sizeof bodies / sizeof bodies[0]; i++) {
+        char raw[128];
+        int len = snprintf(raw, sizeof raw, "{\"AVCDialInKeepaliveIndication\":%s}", bodies[i]);
+        agorahex_message_t m;
+        if (len < 0 || (size_t)len >= sizeof raw) {
+            return fail("format invalid AVC dial-in keepalive body");
+        }
+        agorahex_result_t result = agorahex_parse_envelope(raw, (size_t)len, &m);
+        agorahex_message_free(&m);
+        if (result != AGORAHEX_ERR_JSON_PARSE) {
+            return fail("reject non-object AVC dial-in keepalive body");
+        }
+    }
+    return 0;
+}
+
+static int test_avc_dial_in_keepalive_marshal(void) {
+    static const struct {
+        char *call_id;
+        bool detected;
+    } cases[] = {
+        {"call-1", true}, {"call-1", false},
+        {"", true}, {"", false},
+        {NULL, true}, {NULL, false},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        agorahex_message_t m = {0};
+        m.kind = AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION;
+        m.u.avc_dial_in_keepalive_indication.call_id = cases[i].call_id;
+        m.u.avc_dial_in_keepalive_indication.detected = cases[i].detected;
+        char *json = NULL;
+        size_t json_len = 0;
+        if (agorahex_marshal_envelope(&m, &json, &json_len) != AGORAHEX_OK || !json ||
+            json_len == 0 || json_len != strlen(json)) {
+            free(json);
+            return fail("marshal AVC dial-in keepalive indication");
+        }
+        cJSON *root = cJSON_ParseWithLength(json, json_len);
+        const cJSON *body = cJSON_GetObjectItemCaseSensitive(root, "AVCDialInKeepaliveIndication");
+        const cJSON *call_id = cJSON_GetObjectItemCaseSensitive(body, "callId");
+        const cJSON *detected = cJSON_GetObjectItemCaseSensitive(body, "detected");
+        if (!cJSON_IsObject(root) || cJSON_GetArraySize(root) != 1 || !cJSON_IsObject(body) ||
+            cJSON_GetArraySize(body) != (cases[i].call_id ? 2 : 1) ||
+            (cases[i].call_id && (!cJSON_IsString(call_id) ||
+                                strcmp(cJSON_GetStringValue(call_id), cases[i].call_id) != 0)) ||
+            (!cases[i].call_id && call_id) || !cJSON_IsBool(detected) ||
+            (cJSON_IsTrue(detected) != 0) != cases[i].detected) {
+            cJSON_Delete(root);
+            free(json);
+            return fail("AVC dial-in keepalive serialized fields");
+        }
+        cJSON_Delete(root);
+        agorahex_message_t parsed;
+        agorahex_result_t result = agorahex_parse_envelope(json, json_len, &parsed);
+        free(json);
+        if (result != AGORAHEX_OK) {
+            return fail("parse serialized AVC dial-in keepalive indication");
+        }
+        const agorahex_avc_dial_in_keepalive_indication_t *x = &parsed.u.avc_dial_in_keepalive_indication;
+        if (parsed.kind != m.kind || x->detected != cases[i].detected ||
+            (cases[i].call_id && (!x->call_id || strcmp(x->call_id, cases[i].call_id) != 0)) ||
+            (!cases[i].call_id && x->call_id)) {
+            agorahex_message_free(&parsed);
+            return fail("AVC dial-in keepalive round trip");
+        }
+        agorahex_message_free(&parsed);
+    }
+    return 0;
+}
+
+static int test_avc_dial_in_keepalive_marshal_allocation_failure(void) {
+    static const size_t fail_sizes[] = {sizeof("callId"), sizeof("detected")};
+    agorahex_message_t m = {0};
+    m.kind = AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION;
+    m.u.avc_dial_in_keepalive_indication.call_id = "call-1";
+    m.u.avc_dial_in_keepalive_indication.detected = true;
+    cJSON_Hooks hooks = {
+        .malloc_fn = fail_cjson_allocation,
+        .free_fn = free_cjson_allocation,
+    };
+    for (size_t i = 0; i < sizeof fail_sizes / sizeof fail_sizes[0]; i++) {
+        char *json = NULL;
+        size_t json_len = 123;
+        cjson_fail_allocation_size = fail_sizes[i];
+        cjson_fail_allocation_occurrence = 0;
+        cjson_allocation_occurrence = 0;
+        cJSON_InitHooks(&hooks);
+        agorahex_result_t result = agorahex_marshal_envelope(&m, &json, &json_len);
+        cJSON_InitHooks(NULL);
+        int failed = result != AGORAHEX_ERR_NO_MEMORY || json != NULL || json_len != 0;
+        free(json);
+        if (failed) {
+            return fail("report AVC dial-in keepalive allocation failure");
+        }
+    }
+    return 0;
+}
+
 int main(void) {
+    if (test_avc_dial_in_keepalive_indication_parse() != 0 ||
+        test_avc_dial_in_keepalive_defaults() != 0 ||
+        test_avc_dial_in_keepalive_invalid_body() != 0 ||
+        test_avc_dial_in_keepalive_marshal() != 0 ||
+        test_avc_dial_in_keepalive_marshal_allocation_failure() != 0) {
+        return 1;
+    }
     if (test_avc_call_properties_changed_indication_parse() != 0 ||
         test_avc_call_properties_changed_marshal() != 0 ||
         test_avc_call_properties_changed_marshal_allocation_failure() != 0 ||

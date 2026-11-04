@@ -196,6 +196,9 @@ void agorahex_message_free(agorahex_message_t *m) {
     case AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION:
         free(m->u.avc_call_properties_changed_indication.call_id);
         break;
+    case AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION:
+        free(m->u.avc_dial_in_keepalive_indication.call_id);
+        break;
     default:
         break;
     }
@@ -234,6 +237,8 @@ const char *agorahex_kind_cstr(agorahex_kind_t k) {
         return "AVCCapacityIndication";
     case AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION:
         return "AVCCallPropertiesChangedIndication";
+    case AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION:
+        return "AVCDialInKeepaliveIndication";
     default:
         return "";
     }
@@ -287,6 +292,9 @@ static agorahex_kind_t kind_from_cstr(const char *k) {
     }
     if (strcmp(k, "AVCCallPropertiesChangedIndication") == 0) {
         return AGORAHEX_KIND_AVC_CALL_PROPERTIES_CHANGED_INDICATION;
+    }
+    if (strcmp(k, "AVCDialInKeepaliveIndication") == 0) {
+        return AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION;
     }
     return (agorahex_kind_t)-1;
 }
@@ -758,6 +766,21 @@ static agorahex_result_t parse_kind_body(agorahex_kind_t kind, const cJSON *body
         it = cJSON_GetObjectItemCaseSensitive(body, "event");
         if (cJSON_IsString(it)) {
             x->event = dup_or_null(cJSON_GetStringValue(it));
+        }
+        return AGORAHEX_OK;
+    }
+    case AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION: {
+        agorahex_avc_dial_in_keepalive_indication_t *x = &out->u.avc_dial_in_keepalive_indication;
+        const cJSON *it = cJSON_GetObjectItemCaseSensitive(body, "callId");
+        if (cJSON_IsString(it)) {
+            x->call_id = dup_or_null(cJSON_GetStringValue(it));
+            if (!x->call_id) {
+                return AGORAHEX_ERR_NO_MEMORY;
+            }
+        }
+        it = cJSON_GetObjectItemCaseSensitive(body, "detected");
+        if (cJSON_IsBool(it)) {
+            x->detected = cJSON_IsTrue(it);
         }
         return AGORAHEX_OK;
     }
@@ -1331,6 +1354,19 @@ agorahex_result_t agorahex_marshal_envelope(const agorahex_message_t *msg, char 
         }
         if (x->call_id) {
             cJSON_AddStringToObject(body, "callId", x->call_id);
+        }
+        break;
+    }
+    case AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION: {
+        const agorahex_avc_dial_in_keepalive_indication_t *x = &msg->u.avc_dial_in_keepalive_indication;
+        body = cJSON_CreateObject();
+        if (!body) {
+            break;
+        }
+        if ((x->call_id && !cJSON_AddStringToObject(body, "callId", x->call_id)) ||
+            !cJSON_AddBoolToObject(body, "detected", x->detected ? 1 : 0)) {
+            cJSON_Delete(body);
+            body = NULL;
         }
         break;
     }

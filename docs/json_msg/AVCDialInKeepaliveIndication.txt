@@ -1,0 +1,17 @@
+{
+  "AVCDialInKeepaliveIndication": {
+    "callId": "call-1",
+"detected": true
+  }
+}
+
+callId: 呼叫ID
+detected: 是否检测到
+1、发送时机：callId 存活阶段都可以发送。可以多次发送
+2、发送条件：只有true的时候发送
+3、对应的意义：是call Id 这个通话session 生命周期内，mcu 的content流端口，收到了从sip终端发送来的 keepalive 包。至于keep alive包是哪种具体的实现方式，可以不用通知agora。
+
+4、接收到后Agora会做的行为：
+当接收到这个通知后，agora 会判断分享流，如果当前分享流是“合流”模式，就会切换到“双流”模式。
+
+因此，理论上产品行为会有一个预判--校准的过程。

@@ -124,3 +124,13 @@ make clean
 `properties` 或 `isAudioOnly` 缺失时，`is_audio_only` 默认为 `false`。
 序列化时始终输出 `callId` 和 `properties.isAudioOnly`；`call_id` 为 `NULL` 时输出空字符串，
 `is_audio_only` 为 `false` 时也显式输出。解析字段的生命周期与其他接收消息一致。
+
+`AVCDialInKeepaliveIndication` 支持接收解析和序列化，回调消息类型为
+`AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION`。通过
+`msg_t->u.avc_dial_in_keepalive_indication.call_id` 获取通话 ID，通过
+`msg_t->u.avc_dial_in_keepalive_indication.detected` 获取检测结果。
+`detected` 仅接受 JSON 布尔值，缺失或类型不正确时默认为 `false`；
+`callId` 缺失或不是字符串时，`call_id` 为 `NULL`。
+序列化时显式输出 `detected`，`call_id` 为 `NULL` 时省略 `callId`，与 `AVCDialInRequest` 一致。
+同一呼叫可以多次接收此通知，每条消息均通过现有接收回调交付；字段的生命周期与其他接收消息一致。
+按协议约定，发送方仅在 `detected=true` 时发送通知。合流／双流切换及强制双流状态由上层业务根据回调维护。

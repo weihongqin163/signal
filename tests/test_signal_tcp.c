@@ -23,9 +23,12 @@ static const char g_ping[] =
     "{\"AVCCapacityIndication\":{\"maxCapacity\":10,\"curCapacity\":1,"
     "\"addr\":\"203.0.113.77\",\"port\":1,\"identifier\":\"tcp-test-avc\"}}";
 static const char g_pong[] = "{\"MutedIndication\":{\"callId\":\"00000000-0000-0000-0000-000000000001\",\"muted\":true}}";
+static const char g_keepalive[] =
+    "{\"AVCDialInKeepaliveIndication\":{\"callId\":\"call-1\",\"detected\":true}}";
 static char g_server_ipv4_addr[] = "127.0.0.1";
 
 static int g_server_received;
+static int g_server_keepalives_received;
 static int g_server_reply_sent;
 static int g_server_peer_fd = AGORAHEX_SIGNAL_BROADCAST_FD;
 static int g_client_received;
@@ -62,6 +65,13 @@ static void server_cb(int fd, const void *json, int len, agorahex_message_t *msg
         strcmp(msg_t->u.avc_capacity_indication.identifier, "tcp-test-avc") == 0) {
         g_server_peer_fd = fd;
         g_server_received = 1;
+    }
+    if (msg_t->kind == AGORAHEX_KIND_AVC_DIAL_IN_KEEPALIVE_INDICATION &&
+        len == (int)(sizeof g_keepalive - 1u) && memcmp(json, g_keepalive, (size_t)len) == 0 &&
+        msg_t->u.avc_dial_in_keepalive_indication.call_id &&
+        strcmp(msg_t->u.avc_dial_in_keepalive_indication.call_id, "call-1") == 0 &&
+        msg_t->u.avc_dial_in_keepalive_indication.detected) {
+        g_server_keepalives_received++;
     }
 }
 
@@ -107,7 +117,8 @@ static int run_server(int port) {
             agorahex_signal_close();
             return 1;
         }
-        if (g_server_received && !g_server_reply_sent && g_server_peer_fd >= 0) {
+        if (g_server_received && g_server_keepalives_received == 2 &&
+            !g_server_reply_sent && g_server_peer_fd >= 0) {
             rc = agorahex_signal_send(g_server_peer_fd, g_pong, (int)(sizeof g_pong - 1u));
             if (rc != AGORAHEX_OK) {
                 fprintf(stderr, "server: send failed rc=%d\n", rc);
@@ -126,7 +137,8 @@ static int run_server(int port) {
             return 0;
         }
     }
-    fprintf(stderr, "server: timeout received=%d peer_fd=%d sent=%d\n", g_server_received, g_server_peer_fd, g_server_reply_sent);
+    fprintf(stderr, "server: timeout received=%d keepalives=%d peer_fd=%d sent=%d\n",
+            g_server_received, g_server_keepalives_received, g_server_peer_fd, g_server_reply_sent);
     agorahex_signal_close();
     return 1;
 }
@@ -174,6 +186,7 @@ int main(void) {
 
     long long deadline = now_ms() + 5000ll;
     int ping_sent = 0;
+    int keepalives_sent = 0;
     while (now_ms() < deadline && !g_client_received) {
         if (waitpid(pid, &status, WNOHANG) == pid) {
             agorahex_signal_close();
@@ -202,6 +215,19 @@ int main(void) {
                 waitpid(pid, NULL, 0);
                 return 1;
             }
+        }
+        /* The same live call may report detection more than once. */
+        while (ping_sent && keepalives_sent < 2) {
+            rc = agorahex_signal_send(AGORAHEX_SIGNAL_BROADCAST_FD, g_keepalive,
+                                      (int)(sizeof g_keepalive - 1u));
+            if (rc != AGORAHEX_OK) {
+                fprintf(stderr, "client: keepalive send failed rc=%d\n", rc);
+                agorahex_signal_close();
+                kill(pid, SIGKILL);
+                waitpid(pid, NULL, 0);
+                return 1;
+            }
+            keepalives_sent++;
         }
     }
     if (g_client_connected_count != 1 || g_client_connected_fd < 0 || !g_client_connected_fd_is_open ||
