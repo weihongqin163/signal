@@ -12,7 +12,9 @@
    "e164": "10026",
    "conferenceId": "10026//运营商号码",
    "url": "10026@192.168.101.3",
-   "userAgent": "sip：终端设备的型号，同sdp里面的user-agent, 如：Polycom RealPresence Group 500"
+   "userAgent": "sip：终端设备的型号，同sdp里面的user-agent, 如：Polycom RealPresence Group 500",
+   "sourceAddress":"是从from中得到的地址，通常是local ip 地址，如果有ALG，会是ALG的ip地址",
+   "mediaAddress":"是从ip包中得到的地址，通常是出口ip地址"
   },
   "isAudioOnly": false,
   "peopleProperty": {
