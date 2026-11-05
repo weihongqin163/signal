@@ -367,9 +367,9 @@ typedef struct agorahex_signal_runtime {
   - `1` 表示 server 模式
   - `0` 表示 client 模式
 - `server_ipv4_addr`
-  - 必填的数字 IPv4 地址字符串；`NULL`、主机名和格式错误的 IPv4 地址均无效
+  - 数字 IPv4 地址字符串；client 模式必填，server 模式下 `NULL` 默认使用 `0.0.0.0`；主机名和格式错误的 IPv4 地址均无效
   - client 模式将其作为 server 目标地址
-  - server 模式同样校验该参数，但不将其作为监听地址
+  - server 模式将其作为监听地址；`127.0.0.1` 仅监听回环地址，`0.0.0.0` 监听所有本机 IPv4 接口，也可指定具体本机 IPv4 地址
 - `tcp_port`
   - server 监听端口，或 client 连接端口
 - `cb`
@@ -380,8 +380,8 @@ typedef struct agorahex_signal_runtime {
 
 - 当 `server_mode == 1`
   - 创建 server socket
-  - 将监听地址绑定到 `INADDR_ANY`，即所有本机 IPv4 接口上的指定 `tcp_port`
-  - `server_ipv4_addr` 只参与参数校验，不限制监听接口
+  - 将监听地址绑定到 `server_ipv4_addr:tcp_port`，地址为 `NULL` 时使用 `0.0.0.0`
+  - 地址未配置在本机或绑定失败时返回 `AGORAHEX_ERR_IO`，关闭 socket 且不启动 runtime
   - 设置监听
   - 将 server fd 设为 non-blocking
   - 初始化 client fd 列表
@@ -398,7 +398,8 @@ typedef struct agorahex_signal_runtime {
 
 - client 在启动时保存 `server_ipv4_addr`，首次连接和断线重连始终使用该地址与 `tcp_port`
 - 调用方可传入可路由到远程 server 的数字 IPv4 地址，不限于本机通信
-- server 始终监听 `INADDR_ANY:tcp_port`，接收来自任一本机 IPv4 接口的连接
+- server 根据 `server_ipv4_addr` 选择监听地址，限制的是连接目标地址，不执行客户端来源 IP 白名单检查
+- 回环通信要求 client 和 server 共享网络命名空间；Pod 内的 client 通过 `127.0.0.1` 访问宿主机 server 时，需要使用 `hostNetwork: true` 并运行在同一节点
 - 当前接口只接受数字 IPv4 地址，不解析主机名，也不支持 IPv6 地址
 
 返回语义规划：

@@ -101,7 +101,7 @@ static void client_connect_status_cb(int fd, agorahex_signal_connect_status_t st
 static int run_server(int port) {
     long long deadline = now_ms() + 5000ll;
     int rc =
-        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, g_server_ipv4_addr, port, server_cb, server_connect_status_cb);
+        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, NULL, port, server_cb, server_connect_status_cb);
     if (rc != AGORAHEX_OK) {
         if (rc == AGORAHEX_ERR_IO) {
             fprintf(stderr, "skip: local tcp bind not permitted in this environment\n");
@@ -151,8 +151,6 @@ int main(void) {
     if (agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, NULL, port, client_cb, NULL) !=
             AGORAHEX_ERR_INVALID_ARG ||
         agorahex_signal_start(AGORAHEX_SIGNAL_CLIENT_MODE, malformed_ipv4_addr, port, client_cb, NULL) !=
-            AGORAHEX_ERR_INVALID_ARG ||
-        agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, NULL, port, server_cb, server_connect_status_cb) !=
             AGORAHEX_ERR_INVALID_ARG ||
         agorahex_signal_start(AGORAHEX_SIGNAL_SERVER_MODE, malformed_ipv4_addr, port, server_cb,
                               server_connect_status_cb) != AGORAHEX_ERR_INVALID_ARG) {

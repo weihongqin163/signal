@@ -50,14 +50,17 @@ typedef void (*agorahex_signal_connect_status_cb_t)(int fd, agorahex_signal_conn
 /**
  * Starts the TCP signal runtime in client or server mode.
  * Usage:
- *   1. Provide a required numeric IPv4 address string and a non-NULL callback.
+ *   1. Provide a numeric IPv4 address string (or NULL in server mode) and a non-NULL callback.
  *   2. Call this function once before agorahex_signal_send() or agorahex_signal_poll().
  *   3. After success, repeatedly call agorahex_signal_poll() to drive connect/accept/read events.
  *   4. Call agorahex_signal_close() when finished.
  * Parameters:
  *   server_mode      - AGORAHEX_SIGNAL_CLIENT_MODE or AGORAHEX_SIGNAL_SERVER_MODE.
- *   server_ipv4_addr - required numeric IPv4 string. Client mode connects to this address; server mode
- *                      validates it but listens on all local IPv4 interfaces.
+ *   server_ipv4_addr - numeric IPv4 string, required in client mode. Client mode connects to this address;
+ *                      server mode binds to this address, treating NULL as 0.0.0.0. Use 127.0.0.1 for
+ *                      loopback-only listening, 0.0.0.0 for all local IPv4 interfaces, or a specific
+ *                      local IPv4 address to listen on that address only. Loopback access requires
+ *                      client and server to share a network namespace.
  *   tcp_port         - server TCP port, valid range 1..65535.
  *   cb               - receive callback for decoded JSON messages.
  *   status_cb        - optional connection-status callback. Server mode reports client disconnects;
@@ -65,8 +68,8 @@ typedef void (*agorahex_signal_connect_status_cb_t)(int fd, agorahex_signal_conn
  * Returns:
  *   AGORAHEX_OK on success.
  *   AGORAHEX_ERR_ALREADY_STARTED if the runtime is already active.
- *   AGORAHEX_ERR_INVALID_ARG if mode, address, port, or callback is invalid; NULL and malformed IPv4
- *   addresses are rejected in both client and server modes without starting the runtime.
+ *   AGORAHEX_ERR_INVALID_ARG if mode, address, port, or callback is invalid; NULL is rejected in client
+ *   mode, and malformed IPv4 addresses are rejected in both modes without starting the runtime.
  *   AGORAHEX_ERR_IO if server socket setup, bind, or listen fails.
  * Client connection failures are retried by agorahex_signal_poll().
  */

@@ -78,7 +78,8 @@ static void server_disconnect_client(agorahex_signal_conn_t *conn,
 static int set_nonblocking(int fd);
 static int set_no_sigpipe(int fd);
 static int create_stream_socket(void);
-static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_connect_status_cb_t status_cb);
+static int start_server(struct in_addr bind_addr, int tcp_port, agorahex_signal_cb_t cb,
+                        agorahex_signal_connect_status_cb_t status_cb);
 static int start_client(const char *server_ipv4_addr, int tcp_port, agorahex_signal_cb_t cb,
                         agorahex_signal_connect_status_cb_t status_cb);
 static void close_server_mode(void);
@@ -218,7 +219,8 @@ static int validate_signal_payload(const void *json, int len) {
     return AGORAHEX_OK;
 }
 
-static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_connect_status_cb_t status_cb) {
+static int start_server(struct in_addr bind_addr, int tcp_port, agorahex_signal_cb_t cb,
+                        agorahex_signal_connect_status_cb_t status_cb) {
     int fd;
     int one = 1;
     struct sockaddr_in addr;
@@ -240,7 +242,7 @@ static int start_server(int tcp_port, agorahex_signal_cb_t cb, agorahex_signal_c
     memset(&addr, 0, sizeof addr);
     addr.sin_family = AF_INET;
     addr.sin_port = htons((uint16_t)tcp_port);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr = bind_addr;
     if (bind(fd, (struct sockaddr *)&addr, sizeof addr) != 0) {
         close(fd);
         return AGORAHEX_ERR_IO;
@@ -284,12 +286,15 @@ int agorahex_signal_start(int server_mode, char *server_ipv4_addr, int tcp_port,
     if (g_runtime.mode != -1) {
         return AGORAHEX_ERR_ALREADY_STARTED;
     }
+    if (server_mode == AGORAHEX_SIGNAL_SERVER_MODE && !server_ipv4_addr) {
+        server_ipv4_addr = "0.0.0.0";
+    }
     if ((server_mode != AGORAHEX_SIGNAL_CLIENT_MODE && server_mode != AGORAHEX_SIGNAL_SERVER_MODE) || !cb ||
         !server_ipv4_addr || inet_pton(AF_INET, server_ipv4_addr, &parsed_addr) != 1 || tcp_port <= 0 || tcp_port > 65535) {
         return AGORAHEX_ERR_INVALID_ARG;
     }
     if (server_mode == AGORAHEX_SIGNAL_SERVER_MODE) {
-        return start_server(tcp_port, cb, status_cb);
+        return start_server(parsed_addr, tcp_port, cb, status_cb);
     }
     return start_client(server_ipv4_addr, tcp_port, cb, status_cb);
 }

@@ -74,15 +74,17 @@ static void server_connect_status_cb(int fd, agorahex_signal_connect_status_t st
 }
 
 static void usage(const char *argv0) {
-    fprintf(stderr, "usage: %s [-port tcp_port]\n", argv0);
+    fprintf(stderr, "usage: %s [-server-ipv4-addr bind_ipv4_addr] [-port tcp_port]\n", argv0);
 }
 
 int main(int argc, char **argv) {
-    char server_ipv4_addr[] = "127.0.0.1";
+    char *server_ipv4_addr = "127.0.0.1";
     int port = 9876;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-port") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "-server-ipv4-addr") == 0 && i + 1 < argc) {
+            server_ipv4_addr = argv[++i];
+        } else if (strcmp(argv[i], "-port") == 0 && i + 1 < argc) {
             port = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             usage(argv[0]);
@@ -111,7 +113,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    fprintf(stderr, "listening for signal TCP connections on 0.0.0.0:%d\n", port);
+    fprintf(stderr, "listening for signal TCP connections on %s:%d\n", server_ipv4_addr, port);
     while (!g_stop) {
         rc = agorahex_signal_poll(200);
         if (rc != AGORAHEX_OK) {

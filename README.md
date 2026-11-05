@@ -59,16 +59,31 @@ make test
 - `test_framing`：帧编码/解码回归
 - `test_envelope`：信封解析与序列化回归
 - `test_samples`：校验 `docs/json_msg/*.txt` 中的协议样例
+- `test_signal_tcp`：TCP 消息收发与连接状态回调回归
+- `test_signal_bind`：回环地址、所有接口和指定本机 IPv4 地址的监听范围回归
+- `test_signal_disconnect`：TCP 断开状态回调回归
 
 其中 `test_samples` 需要以 `docs/` 作为工作目录运行，`Makefile` 已自动处理。
 
 ## 运行示例
 
-启动 signal server，监听所有本机 IPv4 接口的 `0.0.0.0:9876`：
+启动 signal server，默认只监听回环地址 `127.0.0.1:9876`：
 
 ```bash
 ./build/hexagora-server -port 9876
 ```
+
+需要允许其他机器连接时，显式监听所有本机 IPv4 接口：
+
+```bash
+./build/hexagora-server -server-ipv4-addr 0.0.0.0 -port 9876
+```
+
+也可将 `-server-ipv4-addr` 设置为某个具体的本机 IPv4 地址，只监听该地址。
+底层 `agorahex_signal_start()` 在 server 模式下使用该参数作为绑定地址（`NULL` 默认使用 `0.0.0.0`），
+client 模式下作为连接目标地址。回环通信要求 client 和 server 共享网络命名空间：
+普通 Pod 内的 `127.0.0.1` 指向该 Pod 自身；Pod 内的 client 访问宿主机 server 的回环地址时，
+需要使用 `hostNetwork: true`，且运行在同一节点。
 
 发送内置样例消息，client 会每隔 1 秒重复发送一次：
 
@@ -76,7 +91,8 @@ make test
 ./build/hexagora-client -port 9876 -sample hangup
 ```
 
-client 默认连接本机 `127.0.0.1:9876`。连接远程 signal server 时，可指定其数字 IPv4 地址：
+client 默认连接本机 `127.0.0.1:9876`。连接已监听网卡地址或 `0.0.0.0` 的远程 signal server 时，
+指定其具体数字 IPv4 地址：
 
 ```bash
 ./build/hexagora-client -server-ipv4-addr 192.0.2.10 -port 9876 -sample hangup
