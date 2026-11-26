@@ -716,7 +716,7 @@ static int handle_client_poll(int timeout_ms) {
             rc = handle_client_readable(&client->conn, client->cb);
             if (rc != AGORAHEX_OK) {
                 conn_reset(&client->conn);
-                return AGORAHEX_OK;
+                return AGORAHEX_ERR_NOT_CONNECTED;
             }
         }
         if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
@@ -737,7 +737,12 @@ int agorahex_signal_poll(int timeout_ms) {
     if (g_runtime.mode == AGORAHEX_SIGNAL_SERVER_MODE) {
         return handle_server_poll(timeout_ms);
     }
-    return handle_client_poll(timeout_ms);
+    int code =  handle_client_poll(timeout_ms);
+    if (g_runtime.client.conn.state != AGORAHEX_SIGNAL_CONN_CONNECTED || g_runtime.client.conn.fd < 0)
+        return AGORAHEX_ERR_NOT_CONNECTED;
+    else
+        return code;
+
 }
 
 static void close_server_mode(void) {
